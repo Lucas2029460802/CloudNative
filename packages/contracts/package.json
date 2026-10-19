@@ -1,8 +1,18 @@
 {
+  "name": "@venue/contracts",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@orpc/contract": "1",
+    "zod": "^4.6.7"
+  },
   "devDependencies": {
     "@types/bun": "latest"
-  },
-  "name": "@venue/contracts",
-  "type": "module",
-  "private": true
+  }
 }

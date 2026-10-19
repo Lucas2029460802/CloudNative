@@ -1,4 +1,29 @@
 {
+  "name": "venue-booking",
+  "private": true,
+  "workspaces": [
+    "apps/*",
+    "packages/*"
+  ],
+  "type": "module",
+  "scripts": {
+    "dev": "bun run --filter \"@venue/*\" dev",
+    "dev:db": "docker compose -f compose.yaml -f compose.dev.yaml up -d database",
+    "build": "bun run --filter \"@venue/*\" build",
+    "typecheck": "bun run --filter \"@venue/*\" typecheck && tsc --noEmit",
+    "lint": "oxlint",
+    "format": "oxfmt",
+    "format:check": "oxfmt --check",
+    "knip": "knip",
+    "test": "vitest run",
+    "test:unit": "vitest run --project unit",
+    "test:integration": "vitest run --project integration",
+    "test:e2e": "playwright test",
+    "db:generate": "bun run --filter @venue/api db:generate",
+    "db:migrate": "bun run --filter @venue/api db:migrate",
+    "db:seed": "bun run --filter @venue/api db:seed",
+    "test:lighthouse": "lhci autorun"
+  },
   "devDependencies": {
     "@axe-core/playwright": "^4.14.0",
     "@lhci/cli": "^0.15.1",
@@ -10,9 +35,5 @@
     "oxlint": "^1.88.0",
     "typescript": "^7.0.2",
     "vitest": "^5.0.5"
-  },
-  "name": "venue-booking",
-  "type": "module",
-  "private": true,
-  "workspaces": ["apps/*", "packages/*"]
+  }
 }

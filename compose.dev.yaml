@@ -1,0 +1,8 @@
+# Development override: publishes PostgreSQL on the loopback interface only, so the API
+# and the integration tests can run on the host. Not used by `docker compose up`.
+#
+#   docker compose -f compose.yaml -f compose.dev.yaml up -d database
+services:
+  database:
+    ports:
+      - "127.0.0.1:${POSTGRES_HOST_PORT:-5432}:5432"

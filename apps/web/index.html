@@ -2,9 +2,19 @@
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
-    <link rel="icon" type="image/svg+xml" href="/vite.svg" />
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <!-- Fetch the Latin Archivo subset early so text does not reflow when it arrives. -->
+    <link
+      rel="preload"
+      as="font"
+      type="font/woff2"
+      crossorigin
+      href="./node_modules/@fontsource-variable/archivo/files/archivo-latin-wdth-normal.woff2"
+    />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>vite-app</title>
+    <meta name="description" content="Book campus venues by the half hour." />
+    <meta name="theme-color" content="#1e463c" />
+    <title>Venue Booking</title>
   </head>
   <body>
     <div id="root"></div>

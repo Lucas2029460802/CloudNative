@@ -26,5 +26,7 @@
     "noUnusedLocals": false,
     "noUnusedParameters": false,
     "noPropertyAccessFromIndexSignature": false
-  }
+  },
+  // Workspaces have their own tsconfig; this one covers root-level tests and configs.
+  "include": ["tests", "*.ts"]
 }

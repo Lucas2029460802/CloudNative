@@ -1,0 +1,21 @@
+{
+  "$schema": "./node_modules/oxfmt/configuration_schema.json",
+  "semi": false,
+  "singleQuote": false,
+  "trailingComma": "es5",
+  "printWidth": 80,
+  "sortTailwindcss": {
+    "stylesheet": "apps/web/src/index.css",
+    "functions": ["cn", "cva"]
+  },
+  "ignorePatterns": [
+    ".agents/**",
+    ".claude/**",
+    ".codex/**",
+    "docs/**",
+    "skills-lock.json",
+    "**/bun.lock",
+    "**/routeTree.gen.ts",
+    "apps/api/drizzle/meta/**"
+  ]
+}

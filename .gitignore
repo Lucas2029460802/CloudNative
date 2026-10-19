@@ -3,3 +3,15 @@
 **/*.tsbuildinfo
 # Playwright CLI output (may contain credentials)
 .playwright-cli/
+
+# Local environment (copy .env.example to .env)
+.env
+.env.*
+!.env.example
+
+# Test and audit output
+coverage/
+test-results/
+playwright-report/
+blob-report/
+.lighthouseci/

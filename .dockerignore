@@ -1,0 +1,35 @@
+# Build context for deploy/api/Dockerfile and deploy/web/Dockerfile (repository root).
+# The Dockerfiles copy only the files they need; this keeps local dependency caches,
+# build output, secrets and tooling out of the context entirely.
+
+# Dependencies and build output are recreated inside the image
+**/node_modules
+**/dist
+**/*.tsbuildinfo
+
+# Secrets and local environment
+.env
+.env.*
+!.env.example
+
+# Version control, editor and agent tooling
+.git
+.github
+.agents
+.claude
+.codex
+.playwright
+.playwright-cli
+.vscode
+.idea
+
+# Tests, reports and documentation are not part of either image
+tests
+docs
+coverage
+test-results
+playwright-report
+blob-report
+.lighthouseci
+**/*.log
+**/*.md
