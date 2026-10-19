@@ -5,8 +5,5 @@
   "name": "venue-booking",
   "type": "module",
   "private": true,
-  "workspaces": {
-    "0": "apps/*",
-    "1": "packages/*"
-  }
+  "workspaces": ["apps/*", "packages/*"]
 }
