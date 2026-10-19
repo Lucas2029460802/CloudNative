@@ -15,9 +15,6 @@ RUN bun install --frozen-lockfile --filter @venue/web
 
 COPY packages/contracts/ packages/contracts/
 COPY apps/web/ apps/web/
-# The browser calls the API on its own origin under /api, which nginx proxies.
-# Override at build time to point the app at a different API origin.
-ARG VITE_API_BASE_URL=/api
 RUN bun run --cwd apps/web build
 
 # ---- Runtime stage: unprivileged nginx serving the build and proxying /api ----

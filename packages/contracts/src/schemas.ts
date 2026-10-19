@@ -23,7 +23,6 @@ export const VenueStatusSchema = z.enum(["open", "disabled"])
 export type VenueStatus = z.infer<typeof VenueStatusSchema>
 
 export const ReservationStatusSchema = z.enum(["confirmed", "cancelled"])
-export type ReservationStatus = z.infer<typeof ReservationStatusSchema>
 
 export const VenueSchema = z.object({
   id: z.number().int(),
@@ -52,7 +51,6 @@ export const CreateVenueInputSchema = z
     path: ["closeTime"],
     message: "Closing time must be later than opening time",
   })
-export type CreateVenueInput = z.input<typeof CreateVenueInputSchema>
 
 export const ReservationSchema = z.object({
   id: z.number().int(),
@@ -88,9 +86,6 @@ export const CreateReservationInputSchema = z
     path: ["endTime"],
     message: "End time must be later than start time",
   })
-export type CreateReservationInput = z.input<
-  typeof CreateReservationInputSchema
->
 
 export const ListReservationsQuerySchema = z.object({
   venueId: IdSchema.optional(),
@@ -102,11 +97,9 @@ export const ListReservationsQuerySchema = z.object({
   /** Case-insensitive search over the booker name and purpose. */
   q: z.string().trim().max(100).optional(),
 })
-export type ListReservationsQuery = z.input<typeof ListReservationsQuerySchema>
 
 export const ReservationConflictSchema = z.object({
   id: z.number().int(),
   startTime: TimeOfDaySchema,
   endTime: TimeOfDaySchema,
 })
-export type ReservationConflict = z.infer<typeof ReservationConflictSchema>

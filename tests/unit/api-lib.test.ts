@@ -36,12 +36,8 @@ describe("loadConfig", () => {
   it("applies defaults", () => {
     expect(loadConfig({ DATABASE_URL })).toEqual({
       DATABASE_URL,
-      DATABASE_POOL_MAX: 10,
-      HOST: "0.0.0.0",
       PORT: 3000,
       APP_TIME_ZONE: "Asia/Shanghai",
-      MIGRATIONS_DIR: "drizzle",
-      DB_MIGRATE_ON_START: true,
       DB_SEED_ON_START: true,
     })
   })

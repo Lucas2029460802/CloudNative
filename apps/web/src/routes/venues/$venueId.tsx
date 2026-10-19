@@ -1,5 +1,6 @@
-import { useQuery, useQueryClient } from "@tanstack/react-query"
+import { skipToken, useQuery, useQueryClient } from "@tanstack/react-query"
 import { createFileRoute, Link } from "@tanstack/react-router"
+import { IdSchema } from "@venue/contracts"
 import { ArrowLeftIcon, BanIcon } from "lucide-react"
 import { useTranslation } from "react-i18next"
 
@@ -25,14 +26,14 @@ function VenuePage() {
   const { venueId } = Route.useParams()
   const today = todayISO()
   const date = Route.useSearch().date ?? today
-  const id = Number(venueId)
-  const validId = Number.isInteger(id) && id > 0 && id <= 2_147_483_647
+  const id = IdSchema.safeParse(venueId).data
 
   // Coming from the board, the venue is already in the cached list: show it at once.
   const queryClient = useQueryClient()
   const venue = useQuery({
-    ...orpc.venues.get.queryOptions({ input: { id } }),
-    enabled: validId,
+    ...orpc.venues.get.queryOptions({
+      input: id === undefined ? skipToken : { id },
+    }),
     placeholderData: () =>
       queryClient
         .getQueryData(orpc.venues.list.queryKey())
@@ -40,7 +41,7 @@ function VenuePage() {
   })
   useDocumentTitle(venue.data?.name)
 
-  if (!validId || isNotFound(venue.error)) {
+  if (id === undefined || isNotFound(venue.error)) {
     return (
       <NotFoundState
         title={t("venue.notFoundTitle")}

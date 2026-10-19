@@ -1,20 +1,15 @@
 import type { Venue } from "@venue/contracts"
 import { asc, eq } from "drizzle-orm"
 
-import { venues, type VenueRow } from "../db/schema"
+import { venues } from "../db/schema"
 import { toHourMinute } from "../lib/time"
 import { os } from "./base"
 
-function toVenue(row: VenueRow): Venue {
+function toVenue(row: typeof venues.$inferSelect): Venue {
   return {
-    id: row.id,
-    name: row.name,
-    location: row.location,
-    capacity: row.capacity,
+    ...row,
     openTime: toHourMinute(row.openTime),
     closeTime: toHourMinute(row.closeTime),
-    status: row.status,
-    description: row.description,
     createdAt: row.createdAt.toISOString(),
   }
 }

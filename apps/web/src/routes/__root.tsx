@@ -1,18 +1,10 @@
 import { createRootRoute, Outlet } from "@tanstack/react-router"
-import { lazy, Suspense } from "react"
 import { useTranslation } from "react-i18next"
 
 import { AppHeader } from "@/components/app-header"
 import { NotFoundState } from "@/components/page-states"
+import { Toaster } from "@/components/ui/toast"
 import { useDocumentTitle } from "@/hooks/use-document-title"
-
-const RouterDevtools = import.meta.env.DEV
-  ? lazy(() =>
-      import("@tanstack/react-router-devtools").then((module) => ({
-        default: module.TanStackRouterDevtools,
-      }))
-    )
-  : () => null
 
 export const Route = createRootRoute({
   component: RootLayout,
@@ -47,9 +39,7 @@ function RootLayout() {
           </a>
         </div>
       </footer>
-      <Suspense>
-        <RouterDevtools position="bottom-right" />
-      </Suspense>
+      <Toaster closeLabel={t("common.closeToast")} />
     </div>
   )
 }

@@ -42,9 +42,8 @@ export const venues = pgTable(
   ]
 )
 
-// Overlapping confirmed reservations are additionally rejected by the
-// `reservations_no_overlap` exclusion constraint (see drizzle/0001_*.sql),
-// which Drizzle cannot express in the schema.
+// Overlapping confirmed reservations are rejected by the `reservations_no_overlap`
+// exclusion constraint (see drizzle/0001_*.sql), which Drizzle cannot express here.
 export const reservations = pgTable(
   "reservations",
   {
@@ -80,6 +79,3 @@ export const reservations = pgTable(
     ),
   ]
 )
-
-export type VenueRow = typeof venues.$inferSelect
-export type ReservationRow = typeof reservations.$inferSelect

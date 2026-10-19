@@ -1,6 +1,6 @@
 import { keepPreviousData, useQuery } from "@tanstack/react-query"
 import { createFileRoute } from "@tanstack/react-router"
-import { ReservationStatusSchema } from "@venue/contracts"
+import { IdSchema, ReservationStatusSchema } from "@venue/contracts"
 import { SearchIcon } from "lucide-react"
 import { useEffect, useRef, useState } from "react"
 import { useTranslation } from "react-i18next"
@@ -32,12 +32,7 @@ import { todayISO } from "@/lib/time"
 const searchSchema = z.object({
   q: z.string().trim().max(100).optional().catch(undefined),
   status: ReservationStatusSchema.optional().catch(undefined),
-  venueId: z.coerce
-    .number<number>()
-    .int()
-    .positive()
-    .optional()
-    .catch(undefined),
+  venueId: IdSchema.optional().catch(undefined),
   dates: z.enum(["upcoming", "all"]).optional().catch(undefined),
 })
 
@@ -66,21 +61,21 @@ function ReservationsPage() {
   })
   const venues = useQuery(orpc.venues.list.queryOptions())
 
+  function setSearch(patch: Partial<typeof search>) {
+    void navigate({ search: (prev) => ({ ...prev, ...patch }), replace: true })
+  }
+
   // Typing updates the URL (and the query) once the person pauses for a moment.
   const [query, setQuery] = useState(search.q ?? "")
-  const searchTimer = useRef<ReturnType<typeof setTimeout> | undefined>(
-    undefined
-  )
+  const searchTimer = useRef<ReturnType<typeof setTimeout>>(undefined)
   useEffect(() => () => clearTimeout(searchTimer.current), [])
   function changeQuery(value: string) {
     setQuery(value)
     clearTimeout(searchTimer.current)
-    searchTimer.current = setTimeout(() => {
-      void navigate({
-        search: (prev) => ({ ...prev, q: value.trim() || undefined }),
-        replace: true,
-      })
-    }, 300)
+    searchTimer.current = setTimeout(
+      () => setSearch({ q: value.trim() || undefined }),
+      300
+    )
   }
 
   const venueItems = [
@@ -124,13 +119,11 @@ function ReservationsPage() {
             value={[search.status ?? "all"]}
             onValueChange={([value]) => {
               if (!value) return
-              const status =
-                value === "all"
-                  ? undefined
-                  : ReservationStatusSchema.parse(value)
-              void navigate({
-                search: (prev) => ({ ...prev, status }),
-                replace: true,
+              setSearch({
+                status:
+                  value === "all"
+                    ? undefined
+                    : ReservationStatusSchema.parse(value),
               })
             }}
           >
@@ -150,14 +143,8 @@ function ReservationsPage() {
             spacing={0}
             value={[dates]}
             onValueChange={([value]) => {
-              if (!value) return
-              void navigate({
-                search: (prev) => ({
-                  ...prev,
-                  dates: value === "all" ? "all" : undefined,
-                }),
-                replace: true,
-              })
+              if (value)
+                setSearch({ dates: value === "all" ? "all" : undefined })
             }}
           >
             <ToggleGroupItem value="upcoming">
@@ -171,10 +158,7 @@ function ReservationsPage() {
             items={venueItems}
             value={search.venueId ?? null}
             onValueChange={(venueId) =>
-              void navigate({
-                search: (prev) => ({ ...prev, venueId: venueId ?? undefined }),
-                replace: true,
-              })
+              setSearch({ venueId: venueId ?? undefined })
             }
           >
             <SelectTrigger

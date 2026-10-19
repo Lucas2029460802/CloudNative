@@ -1,39 +1,20 @@
-import { revalidateLogic, useForm } from "@tanstack/react-form"
+import { revalidateLogic } from "@tanstack/react-form"
 import { useMutation, useQueryClient } from "@tanstack/react-query"
 import { useNavigate } from "@tanstack/react-router"
 import { CreateVenueInputSchema, type VenueStatus } from "@venue/contracts"
 import { CircleAlertIcon } from "lucide-react"
 import { useTranslation } from "react-i18next"
 
-import { TimeSelect } from "@/components/time-select"
+import { fieldErrors, useAppForm } from "@/components/form"
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardFooter } from "@/components/ui/card"
-import {
-  Field,
-  FieldDescription,
-  FieldError,
-  FieldGroup,
-  FieldLabel,
-  FieldTitle,
-} from "@/components/ui/field"
-import { Input } from "@/components/ui/input"
+import { Field, FieldGroup, FieldTitle } from "@/components/ui/field"
 import { Spinner } from "@/components/ui/spinner"
-import { Textarea } from "@/components/ui/textarea"
 import { toast } from "@/components/ui/toast"
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group"
 import { describeError, orpc } from "@/lib/api"
 import { fromMinutes } from "@/lib/time"
-
-type VenueValues = {
-  name: string
-  location: string
-  capacity: number
-  openTime: string
-  closeTime: string
-  status: VenueStatus
-  description: string
-}
 
 const errorKeys = {
   name: "newVenue.errors.name",
@@ -44,31 +25,11 @@ const errorKeys = {
   description: "newVenue.errors.description",
 } as const
 
-type VenueErrorKey = (typeof errorKeys)[keyof typeof errorKeys]
-
-function validateVenue(value: VenueValues) {
-  const result = CreateVenueInputSchema.safeParse(value)
-  const fields: Partial<Record<keyof VenueValues, VenueErrorKey>> = {}
-  for (const issue of result.error?.issues ?? []) {
-    const field = issue.path[0]
-    if (typeof field === "string" && field in errorKeys) {
-      const key = field as keyof typeof errorKeys
-      fields[key] ??= errorKeys[key]
-    }
-  }
-  return Object.keys(fields).length > 0 ? { fields } : undefined
-}
-
-function errorOf(errors: unknown[]) {
-  return errors[0] as VenueErrorKey | undefined
-}
-
 // Every half hour of the day; a venue may close as late as 23:59.
-const halfHours = Array.from({ length: 48 }, (_, index) =>
+const openingTimes = Array.from({ length: 48 }, (_, index) =>
   fromMinutes(index * 30)
 )
-const openingOptions = halfHours
-const closingOptions = [...halfHours.slice(1), "23:59"]
+const closingTimes = [...openingTimes.slice(1), "23:59"]
 
 /** Creates a venue, then opens its booking page. */
 export function VenueForm() {
@@ -93,18 +54,22 @@ export function VenueForm() {
     })
   )
 
-  const form = useForm({
+  const form = useAppForm({
     defaultValues: {
       name: "",
       location: "",
       capacity: Number.NaN,
       openTime: "08:00",
       closeTime: "22:00",
-      status: "open",
+      status: "open" as VenueStatus,
       description: "",
-    } as VenueValues,
+    },
     validationLogic: revalidateLogic(),
-    validators: { onDynamic: ({ value }) => validateVenue(value) },
+    validators: {
+      onDynamic: ({ value }) => ({
+        fields: fieldErrors(CreateVenueInputSchema.safeParse(value), errorKeys),
+      }),
+    },
     onSubmit: async ({ value }) => {
       try {
         await create.mutateAsync({
@@ -129,128 +94,51 @@ export function VenueForm() {
       >
         <CardContent>
           <FieldGroup>
-            <form.Field name="name">
-              {(field) => {
-                const error = errorOf(field.state.meta.errors)
-                return (
-                  <Field data-invalid={!!error}>
-                    <FieldLabel htmlFor="venue-name">
-                      {t("newVenue.name")}
-                    </FieldLabel>
-                    <Input
-                      id="venue-name"
-                      value={field.state.value}
-                      onBlur={field.handleBlur}
-                      onChange={(event) =>
-                        field.handleChange(event.target.value)
-                      }
-                      aria-invalid={!!error}
-                      placeholder={t("newVenue.namePlaceholder")}
-                      maxLength={100}
-                    />
-                    {error && <FieldError>{t(error)}</FieldError>}
-                  </Field>
-                )
-              }}
-            </form.Field>
-
-            <form.Field name="location">
-              {(field) => {
-                const error = errorOf(field.state.meta.errors)
-                return (
-                  <Field data-invalid={!!error}>
-                    <FieldLabel htmlFor="venue-location">
-                      {t("newVenue.location")}
-                    </FieldLabel>
-                    <Input
-                      id="venue-location"
-                      value={field.state.value}
-                      onBlur={field.handleBlur}
-                      onChange={(event) =>
-                        field.handleChange(event.target.value)
-                      }
-                      aria-invalid={!!error}
-                      placeholder={t("newVenue.locationPlaceholder")}
-                      maxLength={200}
-                    />
-                    {error && <FieldError>{t(error)}</FieldError>}
-                  </Field>
-                )
-              }}
-            </form.Field>
-
-            <form.Field name="capacity">
-              {(field) => {
-                const error = errorOf(field.state.meta.errors)
-                return (
-                  <Field data-invalid={!!error}>
-                    <FieldLabel htmlFor="venue-capacity">
-                      {t("newVenue.capacity")}
-                    </FieldLabel>
-                    <Input
-                      id="venue-capacity"
-                      type="number"
-                      inputMode="numeric"
-                      min={1}
-                      max={10_000}
-                      step={1}
-                      value={
-                        Number.isNaN(field.state.value) ? "" : field.state.value
-                      }
-                      onBlur={field.handleBlur}
-                      onChange={(event) =>
-                        field.handleChange(event.target.valueAsNumber)
-                      }
-                      aria-invalid={!!error}
-                      className="tabular-nums sm:max-w-48"
-                    />
-                    {error && <FieldError>{t(error)}</FieldError>}
-                  </Field>
-                )
-              }}
-            </form.Field>
-
+            <form.AppField name="name">
+              {(field) => (
+                <field.TextField
+                  label={t("newVenue.name")}
+                  placeholder={t("newVenue.namePlaceholder")}
+                  maxLength={100}
+                />
+              )}
+            </form.AppField>
+            <form.AppField name="location">
+              {(field) => (
+                <field.TextField
+                  label={t("newVenue.location")}
+                  placeholder={t("newVenue.locationPlaceholder")}
+                  maxLength={200}
+                />
+              )}
+            </form.AppField>
+            <form.AppField name="capacity">
+              {(field) => (
+                <field.NumberField
+                  label={t("newVenue.capacity")}
+                  min={1}
+                  max={10_000}
+                  className="sm:max-w-48"
+                />
+              )}
+            </form.AppField>
             <div className="grid grid-cols-2 gap-4 sm:max-w-sm">
-              <form.Field name="openTime">
-                {(field) => {
-                  const error = errorOf(field.state.meta.errors)
-                  return (
-                    <Field data-invalid={!!error}>
-                      <FieldLabel htmlFor="venue-open">
-                        {t("newVenue.opens")}
-                      </FieldLabel>
-                      <TimeSelect
-                        id="venue-open"
-                        value={field.state.value}
-                        options={openingOptions}
-                        invalid={!!error}
-                        onChange={field.handleChange}
-                      />
-                      {error && <FieldError>{t(error)}</FieldError>}
-                    </Field>
-                  )
-                }}
-              </form.Field>
-              <form.Field name="closeTime">
-                {(field) => {
-                  const error = errorOf(field.state.meta.errors)
-                  return (
-                    <Field data-invalid={!!error}>
-                      <FieldLabel htmlFor="venue-close">
-                        {t("newVenue.closes")}
-                      </FieldLabel>
-                      <TimeSelect
-                        id="venue-close"
-                        value={field.state.value}
-                        options={closingOptions}
-                        invalid={!!error}
-                        onChange={field.handleChange}
-                      />
-                      {error && <FieldError>{t(error)}</FieldError>}
-                    </Field>
-                  )
-                }}
-              </form.Field>
+              <form.AppField name="openTime">
+                {(field) => (
+                  <field.TimeField
+                    label={t("newVenue.opens")}
+                    options={openingTimes}
+                  />
+                )}
+              </form.AppField>
+              <form.AppField name="closeTime">
+                {(field) => (
+                  <field.TimeField
+                    label={t("newVenue.closes")}
+                    options={closingTimes}
+                  />
+                )}
+              </form.AppField>
             </div>
 
             <form.Field name="status">
@@ -280,37 +168,16 @@ export function VenueForm() {
               )}
             </form.Field>
 
-            <form.Field name="description">
-              {(field) => {
-                const error = errorOf(field.state.meta.errors)
-                return (
-                  <Field data-invalid={!!error}>
-                    <FieldLabel htmlFor="venue-description">
-                      {t("newVenue.description")}
-                    </FieldLabel>
-                    <Textarea
-                      id="venue-description"
-                      value={field.state.value}
-                      onBlur={field.handleBlur}
-                      onChange={(event) =>
-                        field.handleChange(event.target.value)
-                      }
-                      aria-invalid={!!error}
-                      placeholder={t("newVenue.descriptionPlaceholder")}
-                      rows={3}
-                      maxLength={500}
-                    />
-                    {error ? (
-                      <FieldError>{t(error)}</FieldError>
-                    ) : (
-                      <FieldDescription>
-                        {t("newVenue.optional")}
-                      </FieldDescription>
-                    )}
-                  </Field>
-                )
-              }}
-            </form.Field>
+            <form.AppField name="description">
+              {(field) => (
+                <field.TextareaField
+                  label={t("newVenue.description")}
+                  description={t("newVenue.optional")}
+                  placeholder={t("newVenue.descriptionPlaceholder")}
+                  maxLength={500}
+                />
+              )}
+            </form.AppField>
 
             {create.isError && (
               <Alert variant="destructive">

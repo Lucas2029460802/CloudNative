@@ -44,15 +44,15 @@ type FixtureName = keyof typeof fixtureVenues
  * tables are emptied and the fixture venues re-inserted; `venueIds` maps fixture names
  * to their fresh ids.
  */
-export function useTestApi() {
-  const database = createDatabase(inject("databaseUrl"), { max: 20 })
-  const app = createApp({ ...database, timeZone: TIME_ZONE, now: () => NOW })
+export function setupTestApi() {
+  const db = createDatabase(inject("databaseUrl"))
+  const app = createApp({ db, timeZone: TIME_ZONE, now: () => NOW })
   const venueIds = {} as Record<FixtureName, number>
 
   beforeEach(async () => {
-    await database.client`truncate table reservations, venues restart identity cascade`
+    await db.$client`truncate table reservations, venues restart identity cascade`
     for (const [name, values] of Object.entries(fixtureVenues)) {
-      const [row] = await database.db
+      const [row] = await db
         .insert(venues)
         .values(values)
         .returning({ id: venues.id })
@@ -60,7 +60,7 @@ export function useTestApi() {
     }
   })
 
-  afterAll(() => database.client.end())
+  afterAll(() => db.$client.end())
 
   async function request(path: string, init?: RequestInit) {
     const response = await app.request(`/api${path}`, init)
@@ -74,7 +74,7 @@ export function useTestApi() {
   }
 
   return {
-    database,
+    db,
     venueIds,
     get: (path: string) => request(path),
     post: (path: string, body?: unknown) =>

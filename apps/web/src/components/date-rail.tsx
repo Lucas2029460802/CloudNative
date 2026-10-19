@@ -26,7 +26,6 @@ export function DateRail({
   onChange: (date: string) => void
 }) {
   const { t, i18n } = useTranslation()
-  const language = i18n.resolvedLanguage ?? "en"
   const [calendarOpen, setCalendarOpen] = useState(false)
   const railRef = useRef<HTMLDivElement>(null)
   const today = todayISO()
@@ -53,7 +52,7 @@ export function DateRail({
   function dayName(date: string, index: number) {
     if (index === 0) return t("common.today")
     if (index === 1) return t("common.tomorrow")
-    return formatDate(date, language, "weekday")
+    return formatDate(date, "weekday")
   }
 
   return (
@@ -75,11 +74,11 @@ export function DateRail({
             key={date}
             value={date}
             data-date={date}
-            title={formatDate(date, language, "long")}
+            title={formatDate(date, "long")}
           >
             <span className="text-xs font-normal">{dayName(date, index)}</span>
             <span className="font-semibold tabular-nums">
-              {formatDate(date, language, "dayMonth")}
+              {formatDate(date, "dayMonth")}
             </span>
           </ToggleGroupItem>
         ))}
@@ -94,9 +93,7 @@ export function DateRail({
           }
         >
           <CalendarIcon data-icon="inline-start" />
-          {isRailDay
-            ? t("common.pickDate")
-            : formatDate(value, language, "medium")}
+          {isRailDay ? t("common.pickDate") : formatDate(value)}
         </PopoverTrigger>
         <PopoverContent className="w-auto p-0" align="end">
           <Calendar
@@ -109,7 +106,7 @@ export function DateRail({
               setCalendarOpen(false)
             }}
             disabled={{ before: startOfToday() }}
-            locale={language === "zh-CN" ? zhCN : enUS}
+            locale={i18n.resolvedLanguage === "zh-CN" ? zhCN : enUS}
           />
         </PopoverContent>
       </Popover>

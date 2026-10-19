@@ -29,8 +29,7 @@ function Detail({
 
 /** The confirmation "slip": what was booked, where, when and by whom. */
 export function ReservationSlip({ reservation }: { reservation: Reservation }) {
-  const { t, i18n } = useTranslation()
-  const language = i18n.resolvedLanguage ?? "en"
+  const { t } = useTranslation()
   const cancelled = reservation.status === "cancelled"
 
   return (
@@ -59,11 +58,9 @@ export function ReservationSlip({ reservation }: { reservation: Reservation }) {
             end: reservation.endTime,
           })}
         </p>
-        <p className="text-lg">
-          {formatDate(reservation.date, language, "long")}
-        </p>
+        <p className="text-lg">{formatDate(reservation.date, "long")}</p>
         <p className="text-sm text-muted-foreground">
-          {formatDuration(durationMinutes(reservation), t)}
+          {formatDuration(durationMinutes(reservation))}
         </p>
       </div>
 
@@ -88,14 +85,14 @@ export function ReservationSlip({ reservation }: { reservation: Reservation }) {
           {t("common.people", { count: reservation.attendeeCount })}
         </Detail>
         <Detail label={t("reservation.createdAt")}>
-          {formatTimestamp(reservation.createdAt, language)}
+          {formatTimestamp(reservation.createdAt)}
         </Detail>
         <Detail label={t("reservation.purpose")} wide>
           <span className="whitespace-pre-wrap">{reservation.purpose}</span>
         </Detail>
         {reservation.cancelledAt && (
           <Detail label={t("reservation.cancelledAt")}>
-            {formatTimestamp(reservation.cancelledAt, language)}
+            {formatTimestamp(reservation.cancelledAt)}
           </Detail>
         )}
       </dl>

@@ -4,12 +4,10 @@
   "type": "module",
   "scripts": {
     "dev": "tsx watch --env-file-if-exists=../../.env src/server.ts",
-    "build": "tsup",
+    "build": "bun build src/server.ts --target=node --outdir=dist",
     "start": "node dist/server.js",
     "typecheck": "tsc --noEmit",
-    "db:generate": "drizzle-kit generate",
-    "db:migrate": "tsx --env-file-if-exists=../../.env src/db/cli.ts migrate",
-    "db:seed": "tsx --env-file-if-exists=../../.env src/db/cli.ts seed"
+    "db:generate": "drizzle-kit generate"
   },
   "dependencies": {
     "@hono/node-server": "^2.1.3",
@@ -25,7 +23,6 @@
   "devDependencies": {
     "@types/node": "^26.6.5",
     "drizzle-kit": "^0.31.11",
-    "tsup": "^9.0.0",
     "tsx": "^4.23.15",
     "typescript": "^7.0.2"
   }

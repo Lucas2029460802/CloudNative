@@ -177,16 +177,14 @@ bun run dev
 
 Vite 开发服务器会把 `/api` 转发给 API，与 Docker 中的 nginx 一致。API 从仓库根目录读取 `.env`，启动时同样会执行迁移和写入种子数据。开发用数据库与完整部署共用同一个 `database-data` 卷。
 
-| 命令                  | 作用                                             |
-| --------------------- | ------------------------------------------------ |
-| `bun run build`       | 构建 API 打包文件和 Web 应用                     |
-| `bun run typecheck`   | 对所有工作区和测试做类型检查                     |
-| `bun run lint`        | 使用 Oxlint 检查代码                             |
-| `bun run format`      | 使用 Oxfmt 格式化（`format:check` 只检查）       |
-| `bun run knip`        | 找出未使用的文件、导出和依赖                     |
-| `bun run db:generate` | 修改 `apps/api/src/db/schema.ts` 后生成迁移      |
-| `bun run db:migrate`  | 对 `DATABASE_URL` 执行迁移（API 启动时也会执行） |
-| `bun run db:seed`     | 向空数据库写入演示场地                           |
+| 命令                  | 作用                                        |
+| --------------------- | ------------------------------------------- |
+| `bun run build`       | 构建 API 打包文件和 Web 应用                |
+| `bun run typecheck`   | 对所有工作区和测试做类型检查                |
+| `bun run lint`        | 使用 Oxlint 检查代码                        |
+| `bun run format`      | 使用 Oxfmt 格式化（`format:check` 只检查）  |
+| `bun run knip`        | 找出未使用的文件、导出和依赖                |
+| `bun run db:generate` | 修改 `apps/api/src/db/schema.ts` 后生成迁移 |
 
 ## 接口说明
 
@@ -269,9 +267,9 @@ Vite 开发服务器会把 `/api` 转发给 API，与 Docker 中的 nginx 一致
 
 只有同时满足以下条件，预约才会被接受：场地存在且开放、请求格式正确、时段在开放时间内、开始时间在未来、人数不超过容量，并且与同一场地的**已确认**预约不重叠。时段为左闭右开区间，因此 09:00–10:00 与 10:00–11:00 可以同时预约。
 
-冲突在两个层面被阻止，并发请求也不会重复预约：
+冲突由数据库原子地阻止，并发请求也不会重复预约：
 
-1. API 在事务中先锁定场地行（`SELECT … FOR UPDATE`），再检查重叠。同一场地的并发请求因此依次执行，后到的请求收到 409，并附带冲突的时间段。
+1. API 先校验场地、时间和人数，再插入预约。若 PostgreSQL 因排他约束拒绝插入（SQLSTATE `23P01`），API 返回 409，并附带冲突的时间段。
 2. PostgreSQL 的排他约束（`EXCLUDE USING gist (venue_id WITH =, tsrange(date + start, date + end) WITH &&) WHERE (status = 'confirmed')`，迁移 `0001`）即使绕过 API 也会拒绝重叠。
 
 **取消采用逻辑取消。** 取消时把 `status` 设为 `cancelled` 并记录 `cancelled_at`，保留该行作为记录。已取消的预约不参与重叠检查，也不受排他约束限制，所以该时段可以立即被重新预约。对已取消的预约再次取消会原样返回（幂等）。

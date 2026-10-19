@@ -19,6 +19,8 @@
   },
   "rules": {
     "react/react-in-jsx-scope": "off",
+    "react/rules-of-hooks": "error",
+    "react/exhaustive-deps": "warn",
     "import/no-unassigned-import": "off",
     "import/no-named-as-default": "off",
     "import/no-named-as-default-member": "off"

@@ -39,7 +39,6 @@ export const zhCN: Translation = {
     closeToast: "关闭通知",
   },
   status: {
-    open: "开放",
     disabled: "停用",
     confirmed: "已确认",
     cancelled: "已取消",
@@ -64,8 +63,6 @@ export const zhCN: Translation = {
   },
   venue: {
     back: "全部场地",
-    capacity: "容纳人数",
-    openingHours: "开放时间",
     chooseTime: "选择时间",
     chooseTimeHint: "先点选开始时段，再点选结束时段。",
     chooseEndHint: "现在点选结束时段；当前已选中一个时段。",
@@ -74,7 +71,6 @@ export const zhCN: Translation = {
     slotBooked: "已预约",
     slotPast: "已过",
     slotSelected: "已选择",
-    booked: "已预约",
     yourSelection: "你的选择",
     disabledTitle: "该场地暂停预约",
     disabledBody: "可能正在维护，请先选择其他场地。",
@@ -103,7 +99,6 @@ export const zhCN: Translation = {
       startTime: "请选择开始和结束时间。",
       endTime: "结束时间必须晚于开始时间。",
       purpose: "请填写用途，最多 500 个字符。",
-      date: "请选择有效日期。",
     },
   },
   reservation: {
@@ -111,8 +106,6 @@ export const zhCN: Translation = {
     confirmedTitle: "预约成功",
     confirmedBody: "请记下预约编号 {{id}}，之后可用它查询或取消预约。",
     venue: "场地",
-    date: "日期",
-    time: "时间",
     bookedBy: "预约人",
     attendees: "人数",
     purpose: "用途",
@@ -184,7 +177,7 @@ export const zhCN: Translation = {
     RESERVATION_CONFLICT:
       "该时间与已确认的预约（{{slots}}）重叠，请选择其他时间。",
     OUTSIDE_OPENING_HOURS:
-      "该场地的开放时间为 {{open}}–{{close}}，请在此范围内选择。",
+      "该场地的开放时间为 {{openTime}}–{{closeTime}}，请在此范围内选择。",
     RESERVATION_IN_PAST: "该开始时间已经过去，请选择更晚的时间。",
     CAPACITY_EXCEEDED: "该场地最多容纳 {{capacity}} 人，请减少参加人数。",
     VENUE_DISABLED: "该场地目前暂停预约。",

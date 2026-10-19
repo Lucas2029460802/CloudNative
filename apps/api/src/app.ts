@@ -2,14 +2,21 @@ import { OpenAPIHandler } from "@orpc/openapi/fetch"
 import { OpenAPIReferencePlugin } from "@orpc/openapi/plugins"
 import { onError, ORPCError, ValidationError } from "@orpc/server"
 import { ZodToJsonSchemaConverter } from "@orpc/zod/zod4"
+import { sql } from "drizzle-orm"
 import { Hono } from "hono"
 
-import type { Database, DatabaseClient } from "./db/client"
-import { router } from "./routers"
+import type { Database } from "./db/client"
+import { os } from "./routers/base"
+import { reservationsRouter } from "./routers/reservations"
+import { venuesRouter } from "./routers/venues"
+
+const router = os.router({
+  venues: venuesRouter,
+  reservations: reservationsRouter,
+})
 
 type AppOptions = {
   db: Database
-  client: DatabaseClient
   timeZone: string
   now?: () => Date
   logRequests?: boolean
@@ -17,7 +24,6 @@ type AppOptions = {
 
 export function createApp({
   db,
-  client,
   timeZone,
   now = () => new Date(),
   logRequests = false,
@@ -82,7 +88,7 @@ export function createApp({
 
   app.get("/api/health", async (c) => {
     try {
-      await client`select 1`
+      await db.execute(sql`select 1`)
       return c.json({ status: "ok", database: "up" })
     } catch {
       return c.json({ status: "unavailable", database: "down" }, 503)
@@ -108,18 +114,6 @@ export function createApp({
       404
     )
   )
-
-  app.onError((error, c) => {
-    console.error(error)
-    return c.json(
-      {
-        code: "INTERNAL_SERVER_ERROR",
-        status: 500,
-        message: "Internal server error",
-      },
-      500
-    )
-  })
 
   return app
 }

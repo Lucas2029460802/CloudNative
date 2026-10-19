@@ -47,17 +47,13 @@ export default async function setup(project: TestProject) {
     databaseUrl = `postgres://postgres:test@127.0.0.1:${hostPort}/venue_test`
   }
 
-  const database = createDatabase(databaseUrl, { max: 2 })
+  const db = createDatabase(databaseUrl)
   try {
     // PostgreSQL accepts TCP connections only after its first-run initialization.
-    await waitForDatabase(database.client, { attempts: 60, delayMs: 500 })
-    await prepareDatabase(database, {
-      migrationsFolder,
-      migrate: true,
-      seed: false,
-    })
+    await waitForDatabase(db, { attempts: 60, delayMs: 500 })
+    await prepareDatabase(db, { migrationsFolder, seed: false })
   } finally {
-    await database.client.end()
+    await db.$client.end()
   }
 
   project.provide("databaseUrl", databaseUrl)

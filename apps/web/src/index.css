@@ -1,10 +1,16 @@
 @import "tailwindcss";
 @import "tw-animate-css";
-@import "shadcn/tailwind.css";
 /* Archivo with its width axis: condensed cuts for headings, normal width for text. */
 @import "@fontsource-variable/archivo/wdth.css";
 
 @custom-variant dark (&:is(.dark *));
+/* Base UI state attributes used by the shadcn/ui components. */
+@custom-variant data-open (&:where([data-open]:not([data-open="false"])));
+@custom-variant data-closed (&:where([data-closed]:not([data-closed="false"])));
+@custom-variant data-checked (&:where([data-checked]:not([data-checked="false"])));
+@custom-variant data-disabled (&:where([data-disabled]:not([data-disabled="false"])));
+@custom-variant data-horizontal (&:where([data-orientation="horizontal"]));
+@custom-variant data-vertical (&:where([data-orientation="vertical"]));
 
 @theme inline {
   /* Chinese glyphs fall back to the platform's CJK sans. */

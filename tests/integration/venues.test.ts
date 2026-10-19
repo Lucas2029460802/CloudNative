@@ -1,8 +1,8 @@
 import { describe, expect, it } from "vitest"
 
-import { useTestApi } from "./helpers"
+import { setupTestApi } from "./helpers"
 
-const api = useTestApi()
+const api = setupTestApi()
 
 const newVenue = {
   name: "  Innovation Lab  ",

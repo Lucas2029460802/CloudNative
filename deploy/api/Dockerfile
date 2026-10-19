@@ -11,18 +11,17 @@ COPY package.json bun.lock ./
 COPY apps/api/package.json apps/api/
 COPY apps/web/package.json apps/web/
 COPY packages/contracts/package.json packages/contracts/
-RUN bun install --frozen-lockfile --filter @venue/api
+RUN bun install --frozen-lockfile --production --filter @venue/api
 
 COPY packages/contracts/ packages/contracts/
 COPY apps/api/ apps/api/
-# tsup bundles the API and all of its dependencies into dist/server.js.
+# Bun bundles the API and all of its dependencies into dist/server.js.
 RUN bun run --cwd apps/api build
 
 # ---- Runtime stage: Node.js with only the bundle and the SQL migrations ----
 FROM node:24.22.0-alpine3.24 AS runtime
 ENV NODE_ENV=production \
-    PORT=3000 \
-    MIGRATIONS_DIR=/app/drizzle
+    PORT=3000
 WORKDIR /app
 
 COPY --from=build /app/apps/api/dist ./dist

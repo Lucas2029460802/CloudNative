@@ -44,8 +44,6 @@ export const apiErrors = {
   },
 } as const
 
-export type ApiErrorCode = keyof typeof apiErrors
-
 const { VENUE_NOT_FOUND, RESERVATION_NOT_FOUND } = apiErrors
 
 /** REST contract shared by the API (implementation) and the web app (typed client). */

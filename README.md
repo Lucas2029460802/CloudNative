@@ -185,8 +185,6 @@ The Vite dev server proxies `/api` to the API, just like nginx does in Docker. T
 | `bun run format`      | Format with Oxfmt (`format:check` to verify only)               |
 | `bun run knip`        | Report unused files, exports, and dependencies                  |
 | `bun run db:generate` | Generate a migration after changing `apps/api/src/db/schema.ts` |
-| `bun run db:migrate`  | Apply migrations to `DATABASE_URL` (also done on API start)     |
-| `bun run db:seed`     | Insert the demo venues into an empty database                   |
 
 ## API
 
@@ -269,10 +267,10 @@ The schema lives in `apps/api/src/db/schema.ts`. Drizzle migrations in `apps/api
 
 A reservation is accepted only if the venue exists and is open, the request is well-formed, the range lies within the opening hours, it starts in the future, and the attendees fit the venue's capacity. It must also not overlap any **confirmed** reservation of the same venue. Ranges are half-open, so 09:00–10:00 and 10:00–11:00 can both be booked.
 
-Conflicts are prevented at two levels, so concurrent requests cannot double-book:
+Conflicts are prevented atomically by the database, so concurrent requests cannot double-book:
 
-1. The API checks for overlaps inside a transaction that first locks the venue row (`SELECT … FOR UPDATE`). Competing requests for the same venue run one after another, and the losing request receives a 409 that names the conflicting time ranges.
-2. PostgreSQL enforces an exclusion constraint (`EXCLUDE USING gist (venue_id WITH =, tsrange(date + start, date + end) WITH &&) WHERE (status = 'confirmed')`, migration `0001`), which rejects overlaps even if the API check were bypassed.
+1. The API validates the venue, time, and capacity, then inserts the reservation. If PostgreSQL rejects the insert with an exclusion violation (SQLSTATE `23P01`), the API returns a 409 that names the conflicting time ranges.
+2. PostgreSQL enforces an exclusion constraint (`EXCLUDE USING gist (venue_id WITH =, tsrange(date + start, date + end) WITH &&) WHERE (status = 'confirmed')`, migration `0001`), which also rejects overlaps from writes that bypass the API.
 
 **Cancellation is logical.** Cancelling sets `status = 'cancelled'` and `cancelled_at` but keeps the row as a record. Cancelled reservations are ignored by the overlap check and the constraint, so the time slot can be booked again immediately. Cancelling an already cancelled reservation returns it unchanged (idempotent).
 

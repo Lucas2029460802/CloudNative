@@ -1,5 +1,5 @@
 import { ORPCError } from "@orpc/client"
-import { revalidateLogic, useForm } from "@tanstack/react-form"
+import { revalidateLogic, useStore } from "@tanstack/react-form"
 import {
   keepPreviousData,
   useMutation,
@@ -8,10 +8,13 @@ import {
 } from "@tanstack/react-query"
 import { useNavigate } from "@tanstack/react-router"
 import { CreateReservationInputSchema, type Venue } from "@venue/contracts"
+import type { ParseKeys } from "i18next"
 import { CircleAlertIcon, TriangleAlertIcon } from "lucide-react"
+import type { ReactNode } from "react"
 import { useTranslation } from "react-i18next"
 
 import { DateRail } from "@/components/date-rail"
+import { fieldErrors, useAppForm } from "@/components/form"
 import { TimeSelect } from "@/components/time-select"
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
 import { Button } from "@/components/ui/button"
@@ -25,14 +28,11 @@ import {
 } from "@/components/ui/card"
 import {
   Field,
-  FieldDescription,
   FieldError,
   FieldGroup,
   FieldLabel,
 } from "@/components/ui/field"
-import { Input } from "@/components/ui/input"
 import { Spinner } from "@/components/ui/spinner"
-import { Textarea } from "@/components/ui/textarea"
 import { SlotPicker } from "@/features/reservations/slot-picker"
 import { useScheduleNow } from "@/hooks/use-minutes-now"
 import { describeError, orpc } from "@/lib/api"
@@ -40,21 +40,11 @@ import { formatDate, formatDuration } from "@/lib/format"
 import {
   daySlots,
   durationMinutes,
-  fromMinutes,
   overlaps,
-  SLOT_MINUTES,
   todayISO,
   toMinutes,
 } from "@/lib/time"
 import { cn } from "@/lib/utils"
-
-type BookingValues = {
-  startTime: string
-  endTime: string
-  bookerName: string
-  attendeeCount: number
-  purpose: string
-}
 
 const errorKeys = {
   startTime: "booking.errors.startTime",
@@ -64,32 +54,16 @@ const errorKeys = {
   purpose: "booking.errors.purpose",
 } as const
 
-type BookingErrorKey =
-  | (typeof errorKeys)[keyof typeof errorKeys]
-  | "booking.errors.overCapacity"
-
-/**
- * Validates with the same schema the API uses, then reports one translatable message
- * per field. Capacity is checked here for convenience; the API checks it again.
- */
-function validateBooking(value: BookingValues, venue: Venue, date: string) {
-  const result = CreateReservationInputSchema.safeParse({
-    ...value,
-    venueId: venue.id,
-    date,
-  })
-  const fields: Partial<Record<keyof BookingValues, BookingErrorKey>> = {}
-  for (const issue of result.error?.issues ?? []) {
-    const field = issue.path[0]
-    if (typeof field === "string" && field in errorKeys) {
-      const key = field as keyof typeof errorKeys
-      fields[key] ??= errorKeys[key]
-    }
-  }
-  if (value.attendeeCount > venue.capacity) {
-    fields.attendeeCount ??= "booking.errors.overCapacity"
-  }
-  return Object.keys(fields).length > 0 ? { fields } : undefined
+function Warning({ children }: { children: ReactNode }) {
+  return (
+    <p className="flex gap-2 text-sm text-destructive">
+      <TriangleAlertIcon
+        aria-hidden="true"
+        className="mt-0.5 size-4 shrink-0"
+      />
+      {children}
+    </p>
+  )
 }
 
 export function BookingSection({
@@ -101,8 +75,7 @@ export function BookingSection({
   date: string
   onDateChange: (date: string) => void
 }) {
-  const { t, i18n } = useTranslation()
-  const language = i18n.resolvedLanguage ?? "en"
+  const { t } = useTranslation()
   const queryClient = useQueryClient()
   const navigate = useNavigate()
   const now = useScheduleNow(date, todayISO())
@@ -142,17 +115,31 @@ export function BookingSection({
     })
   )
 
-  const form = useForm({
+  const form = useAppForm({
     defaultValues: {
       startTime: "",
       endTime: "",
       bookerName: "",
       attendeeCount: Number.NaN,
       purpose: "",
-    } as BookingValues,
+    },
     validationLogic: revalidateLogic(),
     validators: {
-      onDynamic: ({ value }) => validateBooking(value, venue, date),
+      // The API's own schema; capacity is checked here for convenience and again by the API.
+      onDynamic: ({ value }) => {
+        const fields = fieldErrors(
+          CreateReservationInputSchema.safeParse({
+            ...value,
+            venueId: venue.id,
+            date,
+          }),
+          errorKeys
+        )
+        if (value.attendeeCount > venue.capacity) {
+          fields.attendeeCount ??= "booking.errors.overCapacity"
+        }
+        return { fields }
+      },
     },
     onSubmit: async ({ value }) => {
       try {
@@ -163,9 +150,18 @@ export function BookingSection({
     },
   })
 
-  function setTimes(startTime: string, endTime: string) {
-    form.setFieldValue("startTime", startTime)
-    form.setFieldValue("endTime", endTime)
+  const startTime = useStore(form.store, (state) => state.values.startTime)
+  const endTime = useStore(form.store, (state) => state.values.endTime)
+  const range = startTime && endTime ? { startTime, endTime } : null
+  const validRange = range !== null && startTime < endTime
+  const conflict =
+    validRange && bookings.some((booking) => overlaps(booking, range))
+  const past =
+    startTime !== "" && now !== undefined && toMinutes(startTime) <= now
+
+  function setTimes(start: string, end: string) {
+    form.setFieldValue("startTime", start)
+    form.setFieldValue("endTime", end)
     create.reset()
   }
 
@@ -184,31 +180,23 @@ export function BookingSection({
           {t("venue.chooseTime")}
         </h2>
         <DateRail value={date} onChange={changeDate} />
-        <form.Subscribe
-          selector={(state) =>
-            [state.values.startTime, state.values.endTime] as const
-          }
-        >
-          {([startTime, endTime]) => (
-            <div
-              aria-busy={bookingsQuery.isPlaceholderData}
-              className={cn(
-                "transition-opacity",
-                bookingsQuery.isPlaceholderData && "opacity-50"
-              )}
-            >
-              <SlotPicker
-                key={date}
-                openTime={venue.openTime}
-                closeTime={venue.closeTime}
-                bookings={bookings}
-                value={startTime && endTime ? { startTime, endTime } : null}
-                onChange={(range) => setTimes(range.startTime, range.endTime)}
-                now={now}
-              />
-            </div>
+        <div
+          aria-busy={bookingsQuery.isPlaceholderData}
+          className={cn(
+            "transition-opacity",
+            bookingsQuery.isPlaceholderData && "opacity-50"
           )}
-        </form.Subscribe>
+        >
+          <SlotPicker
+            key={date}
+            openTime={venue.openTime}
+            closeTime={venue.closeTime}
+            bookings={bookings}
+            value={range}
+            onChange={(next) => setTimes(next.startTime, next.endTime)}
+            now={now}
+          />
+        </div>
       </section>
 
       <Card className="lg:sticky lg:top-6">
@@ -224,9 +212,7 @@ export function BookingSection({
             <CardTitle className="font-display text-xl">
               {t("booking.title")}
             </CardTitle>
-            <CardDescription>
-              {formatDate(date, language, "long")}
-            </CardDescription>
+            <CardDescription>{formatDate(date, "long")}</CardDescription>
           </CardHeader>
           <CardContent>
             <FieldGroup>
@@ -234,22 +220,8 @@ export function BookingSection({
                 {(startField) => (
                   <form.Field name="endTime">
                     {(endField) => {
-                      const startTime = startField.state.value
-                      const endTime = endField.state.value
                       const timeError = (startField.state.meta.errors[0] ??
-                        endField.state.meta.errors[0]) as
-                        | BookingErrorKey
-                        | undefined
-                      const range =
-                        startTime && endTime ? { startTime, endTime } : null
-                      const validRange = range !== null && startTime < endTime
-                      const conflict =
-                        validRange &&
-                        bookings.some((booking) => overlaps(booking, range))
-                      const past =
-                        startTime !== "" &&
-                        now !== undefined &&
-                        toMinutes(startTime) <= now
+                        endField.state.meta.errors[0]) as ParseKeys | undefined
                       return (
                         <div className="flex flex-col gap-3">
                           {validRange ? (
@@ -261,7 +233,7 @@ export function BookingSection({
                                 })}
                               </span>
                               <span className="text-sm text-muted-foreground">
-                                {formatDuration(durationMinutes(range), t)}
+                                {formatDuration(durationMinutes(range))}
                               </span>
                             </p>
                           ) : (
@@ -280,17 +252,15 @@ export function BookingSection({
                                 options={slots.map((slot) => slot.startTime)}
                                 invalid={!!timeError}
                                 onChange={(next) => {
-                                  // Keep the range valid: move the end after the new start if needed.
-                                  const end =
-                                    endTime && endTime > next
-                                      ? endTime
-                                      : (slots.find(
-                                          (slot) => slot.startTime === next
-                                        )?.endTime ??
-                                        fromMinutes(
-                                          toMinutes(next) + SLOT_MINUTES
-                                        ))
-                                  setTimes(next, next ? end : endTime)
+                                  // Keep the range valid: end with the new start slot if needed.
+                                  const slotEnd =
+                                    slots.find(
+                                      (slot) => slot.startTime === next
+                                    )?.endTime ?? ""
+                                  setTimes(
+                                    next,
+                                    endTime > next ? endTime : slotEnd
+                                  )
                                 }}
                               />
                             </Field>
@@ -309,23 +279,9 @@ export function BookingSection({
                           </div>
                           {timeError && <FieldError>{t(timeError)}</FieldError>}
                           {conflict && (
-                            <p className="flex gap-2 text-sm text-destructive">
-                              <TriangleAlertIcon
-                                aria-hidden="true"
-                                className="mt-0.5 size-4 shrink-0"
-                              />
-                              {t("booking.overlapHint")}
-                            </p>
+                            <Warning>{t("booking.overlapHint")}</Warning>
                           )}
-                          {past && (
-                            <p className="flex gap-2 text-sm text-destructive">
-                              <TriangleAlertIcon
-                                aria-hidden="true"
-                                className="mt-0.5 size-4 shrink-0"
-                              />
-                              {t("booking.pastHint")}
-                            </p>
-                          )}
+                          {past && <Warning>{t("booking.pastHint")}</Warning>}
                         </div>
                       )
                     }}
@@ -333,107 +289,38 @@ export function BookingSection({
                 )}
               </form.Field>
 
-              <form.Field name="bookerName">
-                {(field) => {
-                  const error = field.state.meta.errors[0] as
-                    | BookingErrorKey
-                    | undefined
-                  return (
-                    <Field data-invalid={!!error}>
-                      <FieldLabel htmlFor="booking-name">
-                        {t("booking.bookerName")}
-                      </FieldLabel>
-                      <Input
-                        id="booking-name"
-                        name={field.name}
-                        value={field.state.value}
-                        onBlur={field.handleBlur}
-                        onChange={(event) =>
-                          field.handleChange(event.target.value)
-                        }
-                        aria-invalid={!!error}
-                        placeholder={t("booking.bookerNamePlaceholder")}
-                        autoComplete="name"
-                        maxLength={100}
-                      />
-                      {error && <FieldError>{t(error)}</FieldError>}
-                    </Field>
-                  )
-                }}
-              </form.Field>
-
-              <form.Field name="attendeeCount">
-                {(field) => {
-                  const error = field.state.meta.errors[0] as
-                    | BookingErrorKey
-                    | undefined
-                  return (
-                    <Field data-invalid={!!error}>
-                      <FieldLabel htmlFor="booking-attendees">
-                        {t("booking.attendees")}
-                      </FieldLabel>
-                      <Input
-                        id="booking-attendees"
-                        name={field.name}
-                        type="number"
-                        inputMode="numeric"
-                        min={1}
-                        max={venue.capacity}
-                        step={1}
-                        value={
-                          Number.isNaN(field.state.value)
-                            ? ""
-                            : field.state.value
-                        }
-                        onBlur={field.handleBlur}
-                        onChange={(event) =>
-                          field.handleChange(event.target.valueAsNumber)
-                        }
-                        aria-invalid={!!error}
-                        className="tabular-nums"
-                      />
-                      {error ? (
-                        <FieldError>
-                          {t(error, { capacity: venue.capacity })}
-                        </FieldError>
-                      ) : (
-                        <FieldDescription>
-                          {t("common.upToPeople", { count: venue.capacity })}
-                        </FieldDescription>
-                      )}
-                    </Field>
-                  )
-                }}
-              </form.Field>
-
-              <form.Field name="purpose">
-                {(field) => {
-                  const error = field.state.meta.errors[0] as
-                    | BookingErrorKey
-                    | undefined
-                  return (
-                    <Field data-invalid={!!error}>
-                      <FieldLabel htmlFor="booking-purpose">
-                        {t("booking.purpose")}
-                      </FieldLabel>
-                      <Textarea
-                        id="booking-purpose"
-                        name={field.name}
-                        value={field.state.value}
-                        onBlur={field.handleBlur}
-                        onChange={(event) =>
-                          field.handleChange(event.target.value)
-                        }
-                        aria-invalid={!!error}
-                        placeholder={t("booking.purposePlaceholder")}
-                        rows={3}
-                        maxLength={500}
-                      />
-                      {error && <FieldError>{t(error)}</FieldError>}
-                    </Field>
-                  )
-                }}
-              </form.Field>
+              <form.AppField name="bookerName">
+                {(field) => (
+                  <field.TextField
+                    label={t("booking.bookerName")}
+                    placeholder={t("booking.bookerNamePlaceholder")}
+                    autoComplete="name"
+                    maxLength={100}
+                  />
+                )}
+              </form.AppField>
+              <form.AppField name="attendeeCount">
+                {(field) => (
+                  <field.NumberField
+                    label={t("booking.attendees")}
+                    description={t("common.upToPeople", {
+                      count: venue.capacity,
+                    })}
+                    errorValues={{ capacity: venue.capacity }}
+                    min={1}
+                    max={venue.capacity}
+                  />
+                )}
+              </form.AppField>
+              <form.AppField name="purpose">
+                {(field) => (
+                  <field.TextareaField
+                    label={t("booking.purpose")}
+                    placeholder={t("booking.purposePlaceholder")}
+                    maxLength={500}
+                  />
+                )}
+              </form.AppField>
 
               {create.isError && (
                 <Alert variant="destructive">
@@ -447,25 +334,17 @@ export function BookingSection({
             </FieldGroup>
           </CardContent>
           <CardFooter>
-            <form.Subscribe
-              selector={(state) =>
-                [state.values.startTime, state.values.endTime] as const
-              }
+            <Button
+              type="submit"
+              size="lg"
+              className="w-full"
+              disabled={create.isPending}
             >
-              {([startTime, endTime]) => (
-                <Button
-                  type="submit"
-                  size="lg"
-                  className="w-full"
-                  disabled={create.isPending}
-                >
-                  {create.isPending && <Spinner data-icon="inline-start" />}
-                  {startTime && endTime && startTime < endTime
-                    ? t("booking.submit", { start: startTime, end: endTime })
-                    : t("booking.submitNoTime")}
-                </Button>
-              )}
-            </form.Subscribe>
+              {create.isPending && <Spinner data-icon="inline-start" />}
+              {validRange
+                ? t("booking.submit", { start: startTime, end: endTime })
+                : t("booking.submitNoTime")}
+            </Button>
           </CardFooter>
         </form>
       </Card>

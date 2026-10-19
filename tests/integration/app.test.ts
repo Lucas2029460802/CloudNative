@@ -2,9 +2,9 @@ import { afterAll, beforeAll, describe, expect, inject, it, vi } from "vitest"
 
 import { createApp } from "../../apps/api/src/app"
 import { createDatabase } from "../../apps/api/src/db/client"
-import { TIME_ZONE, useTestApi } from "./helpers"
+import { TIME_ZONE, setupTestApi } from "./helpers"
 
-const api = useTestApi()
+const api = setupTestApi()
 
 describe("infrastructure endpoints", () => {
   it("reports database connectivity on /api/health", async () => {
@@ -43,11 +43,11 @@ describe("infrastructure endpoints", () => {
 })
 
 describe("when the database is unavailable", () => {
-  const broken = createDatabase(inject("databaseUrl"), { max: 1 })
-  const app = createApp({ ...broken, timeZone: TIME_ZONE })
+  const broken = createDatabase(inject("databaseUrl"))
+  const app = createApp({ db: broken, timeZone: TIME_ZONE })
   const consoleError = vi.spyOn(console, "error").mockImplementation(() => {})
 
-  beforeAll(() => broken.client.end())
+  beforeAll(() => broken.$client.end())
   afterAll(() => consoleError.mockRestore())
 
   it("reports 503 on the health check", async () => {

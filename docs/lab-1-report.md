@@ -64,7 +64,7 @@ database（只接入 backend-net）──▶ 命名卷 database-data
 ### 2.2 请求链路
 
 1. 浏览器访问 `http://localhost:8080`，nginx 返回 `index.html` 和 `/assets/` 下的静态文件。`/reservations/12` 这类前端路由由 nginx 回退到 `index.html`，再由前端路由渲染。
-2. 页面通过同源的 `/api/...` 调用后端（`apps/web/src/lib/api.ts`，基础路径为 `VITE_API_BASE_URL`，默认 `/api`）。nginx 把 `/api/` 转发到 `http://api:3000`，因此浏览器只与前端所在的源通信，既不需要配置 CORS，也不需要在构建时写死后端地址。
+2. 页面通过同源的 `/api/...` 调用后端（`apps/web/src/lib/api.ts`，基础路径固定为 `${location.origin}/api`）。nginx 把 `/api/` 转发到 `http://api:3000`，因此浏览器只与前端所在的源通信，既不需要配置 CORS，也不需要在构建时写死后端地址。
 3. API 校验参数、执行业务规则，并通过 Compose 服务名 `database` 连接 PostgreSQL。
 4. 前端不直接访问数据库：`frontend` 容器只接入 `frontend-net`，解析不到也连不上 `database`（第 7.10 节验证）。
 5. 前端用与 API 相同的 Zod 规则（`packages/contracts`）即时提示输入问题，但冲突判断最终由 API 和数据库决定：即使前端已提示时间重叠，请求仍会发给 API，由 API 返回 409（第 8 节用例 4）。
@@ -72,7 +72,7 @@ database（只接入 backend-net）──▶ 命名卷 database-data
 ### 2.3 应用、进程、镜像与容器
 
 - **镜像**是按 Dockerfile 构建出的只读模板，例如 `venue-booking/api:1.0.0` 只包含 Node.js 运行时、打包后的 `dist/server.js` 和 SQL 迁移文件。
-- **容器**是镜像的运行实例，由 Compose 为它附加环境变量、网络、卷、重启策略和健康检查，例如 `venue-booking-api-1`。同一个镜像可以创建多个容器：本机上默认实例的 `venue-booking-api-1` 和第 7 节临时项目的 `venue-booking-report-api-1` 都来自镜像 `venue-booking/api:1.0.0`。
+- **容器**是镜像的运行实例，由 Compose 为它附加环境变量、网络、卷、重启策略和健康检查，例如 `venue-booking-api-1`。同一个镜像可以在不同的 Compose 项目中创建多个容器。
 - **进程**是容器里实际运行的程序。容器的生命周期就是其主进程的生命周期：主进程退出，容器就停止。
 - **应用**由三个容器协作完成。`docker compose down` 删除容器（进程随之结束），但镜像和命名卷仍在；再次 `up` 时用同一镜像创建新容器、挂载同一个卷，所以数据不会丢失（第 7.9 节）。
 
@@ -80,26 +80,27 @@ database（只接入 backend-net）──▶ 命名卷 database-data
 
 ```text
 $ docker compose -p venue-booking-report top
-SERVICE   #   UID    PID  PPID  C   STIME  TTY  TIME      CMD
-api       1   1000   655  631   0   11:28  ?    00:00:01  node dist/server.js
-database  1   70     550  525   0   11:28  ?    00:00:00  postgres
-database  1   70     594  550   0   11:28  ?    00:00:00  postgres: io worker 0
-……
-database  1   70     597  550   0   11:28  ?    00:00:00  postgres: checkpointer
-database  1   70     598  550   0   11:28  ?    00:00:00  postgres: background writer
-database  1   70     600  550   0   11:28  ?    00:00:00  postgres: walwriter
-database  1   70     601  550   0   11:28  ?    00:00:00  postgres: autovacuum launcher
-database  1   70     602  550   0   11:28  ?    00:00:00  postgres: logical replication launcher
-database  1   70     692  550   0   11:28  ?    00:00:00  postgres: venue venue_booking 172.21.0.3(39842) idle
-database  1   70     693  550   0   11:28  ?    00:00:00  postgres: venue venue_booking 172.21.0.3(39850) idle
-frontend  1   statd  770  746   0   11:29  ?    00:00:00  nginx: master process nginx -g daemon off;
-frontend  1   statd  830  770   0   11:29  ?    00:00:00  nginx: worker process
+SERVICE   #   UID    PID    PPID   C   STIME  TTY  TIME      CMD
+api       1   1000   13678  13654  2   13:53  ?    00:00:00  node dist/server.js
+database  1   70     9124   9101   0   13:48  ?    00:00:00  postgres
+database  1   70     9245   9124   0   13:48  ?    00:00:00  postgres: io worker 1
+database  1   70     9246   9124   0   13:48  ?    00:00:00  postgres: io worker 0
+database  1   70     9247   9124   0   13:48  ?    00:00:00  postgres: io worker 2
+database  1   70     9248   9124   0   13:48  ?    00:00:00  postgres: checkpointer
+database  1   70     9249   9124   0   13:48  ?    00:00:00  postgres: background writer
+database  1   70     9251   9124   0   13:48  ?    00:00:00  postgres: walwriter
+database  1   70     9252   9124   0   13:48  ?    00:00:00  postgres: autovacuum launcher
+database  1   70     9253   9124   0   13:48  ?    00:00:00  postgres: logical replication launcher
+database  1   70     13715  9124   0   13:53  ?    00:00:00  postgres: venue venue_booking 172.22.0.3(52166) idle
+database  1   70     13716  9124   0   13:53  ?    00:00:00  postgres: venue venue_booking 172.22.0.3(52168) idle
+frontend  1   statd  14175  14150  1   13:53  ?    00:00:00  nginx: master process nginx -g daemon off;
+frontend  1   statd  14236  14175  0   13:53  ?    00:00:00  nginx: worker process
 ……
 # 共 24 个 nginx worker 进程（worker_processes auto，与 CPU 核数相同），此处省略
 ```
 
 - `api` 容器只有一个进程 `node dist/server.js`，以 uid 1000（`node` 用户）运行；
-- `database` 中，`postgres` 主进程派生出各后台进程，最后两行是 API 连接池（来自 API 在 `backend-net` 上的地址 172.21.0.3）建立的空闲连接；
+- `database` 中，`postgres` 主进程派生出各后台进程，最后两行是 API 连接池（来自 API 在 `backend-net` 上的地址 172.22.0.3）建立的空闲连接；
 - `frontend` 中是 nginx 的 master 和 worker 进程。UID 一列按 Docker 主机（Docker Desktop 虚拟机）的用户表显示，uid 101 在主机上恰好对应 `statd`；容器内 `id` 显示为 `uid=101(nginx)`（第 5.3 节）。STIME 为 UTC 时间。
 
 ### 2.4 技术栈
@@ -137,7 +138,7 @@ frontend  1   statd  830  770   0   11:29  ?    00:00:00  nginx: worker process
 │           ├── features/     # 预约看板、预约流程、预约记录
 │           ├── components/   # 通用组件（shadcn/ui 组件位于 ui/）
 │           ├── locales/      # 英文与简体中文文案
-│           └── lib/          # API 客户端、时间与格式化工具、i18n
+│           └── lib/          # API 客户端、时间与格式化工具、i18n、主题切换
 ├── packages/contracts/       # api 与 web 共用的接口契约和 Zod 校验规则
 ├── deploy/
 │   ├── api/Dockerfile        # API 多阶段构建镜像
@@ -283,10 +284,10 @@ ALTER TABLE "reservations" ADD CONSTRAINT "reservations_no_overlap" EXCLUDE USIN
 
 ### 3.5 并发下的冲突检测
 
-冲突在两个层面被阻止（`apps/api/src/routers/reservations.ts`）：
+冲突由数据库判定，API 把约束错误转换为业务响应（`apps/api/src/routers/reservations.ts`）：
 
-1. **API 层**：创建预约时开启事务，先 `SELECT … FROM venues WHERE id = ? FOR UPDATE` 锁定场地行，再查询与请求时段重叠的已确认预约，没有冲突才插入。同一场地的并发请求因此依次执行，后到的请求一定能看到先到请求已提交的预约，收到 409 和冲突时段列表。
-2. **数据库层**：排他约束兜底。即使绕过 API 直接写数据库，也无法写入重叠的预约（第 7.8 节演示）；如果 API 的检查与写入之间出现意外竞争，API 捕获 `23P01` 后同样返回 409。
+1. **API 层**：创建预约时开启事务，用 `SELECT … FROM venues WHERE id = ? FOR UPDATE` 锁定场地行，校验状态、时间和人数后插入预约。同一场地的创建请求因此依次执行，不同场地之间互不阻塞。若插入违反排他约束，事务回滚后 API 捕获 `23P01`，再查询与请求时段重叠的已确认预约，返回 409 和冲突时段列表。
+2. **数据库层**：排他约束原子地检查重叠。同一场地的并发请求也不能写入重叠预约，即使绕过 API 直接写数据库也一样（第 7.8 节演示）。
 
 ### 3.6 取消方式：逻辑取消
 
@@ -312,11 +313,11 @@ API 启动时（`apps/api/src/server.ts`、`apps/api/src/db/prepare.ts`）依次
 1. 读取并校验环境变量（`apps/api/src/config.ts`，缺少 `DATABASE_URL` 等配置时直接报错退出）；
 2. 反复执行 `select 1` 等待数据库可连接（最多 30 次，每次间隔 1 秒）；
 3. 获取 PostgreSQL 会话级咨询锁（advisory lock），保证多个 API 实例同时启动时不会并发执行迁移；
-4. 执行尚未应用的迁移，Drizzle 把已执行的迁移记录在 `drizzle.__drizzle_migrations` 表中；
+4. 执行尚未应用的迁移，Drizzle 把已执行的迁移记录在 `drizzle.__drizzle_migrations` 表中；迁移目录由 `server.ts` 相对于自身位置定位到 `../drizzle`；
 5. 如果 `venues` 表为空，写入 6 个演示场地；表中已有场地时跳过，不会覆盖用户数据；
 6. 释放锁，开始监听 3000 端口。
 
-API 支持用环境变量 `DB_MIGRATE_ON_START=false`、`DB_SEED_ON_START=false` 跳过第 4、5 步，改为手动执行 `bun run db:migrate`、`bun run db:seed`（`compose.yaml` 只把 `DB_SEED_ON_START` 传给了容器）。
+API 每次启动都会检查迁移；环境变量 `DB_SEED_ON_START=false` 可以跳过第 5 步。仓库保留 `bun run db:generate` 生成迁移文件，迁移和种子数据都由启动流程处理。
 
 演示场地（`apps/api/src/db/seed.ts`）：
 
@@ -397,18 +398,18 @@ API 支持用环境变量 `DB_MIGRATE_ON_START=false`、`DB_SEED_ON_START=false`
 预约的响应中会附带场地的编号、名称和位置，前端无需再单独查询场地：
 
 ```json
-{"id":1,"venueId":3,"venue":{"id":3,"name":"Maple Meeting Room","location":"Library, 4F"},"bookerName":"Robotics Club","attendeeCount":8,"date":"2026-10-30","startTime":"14:00","endTime":"15:30","purpose":"Sprint planning","status":"confirmed","createdAt":"2026-10-19T08:42:37.245Z","cancelledAt":null}
+{"id":1,"venueId":3,"venue":{"id":3,"name":"Maple Meeting Room","location":"Library, 4F"},"bookerName":"Robotics Club","attendeeCount":8,"date":"2026-10-30","startTime":"14:00","endTime":"15:30","purpose":"Sprint planning","status":"confirmed","createdAt":"2026-10-19T13:53:37.224Z","cancelledAt":null}
 ```
 
 ### 4.3 创建预约的校验顺序
 
 1. 请求格式和字段（契约中的 Zod 规则）：不合法时返回 400 `BAD_REQUEST`，`data.issues` 逐项列出 `{ path, message }`；
-2. 在事务中锁定场地行：场地不存在返回 404 `VENUE_NOT_FOUND`，场地停用返回 400 `VENUE_DISABLED`；
+2. 在事务中查询并锁定场地行：场地不存在返回 404 `VENUE_NOT_FOUND`，场地停用返回 400 `VENUE_DISABLED`；
 3. 开始时间不晚于当前时间（按 `APP_TIME_ZONE`）：400 `RESERVATION_IN_PAST`；
 4. 时段超出场地开放时间：400 `OUTSIDE_OPENING_HOURS`；
 5. 人数超过场地容量：400 `CAPACITY_EXCEEDED`；
-6. 与同一场地已确认的预约重叠：409 `RESERVATION_CONFLICT`，`data.conflicts` 列出冲突的预约；
-7. 全部通过后写入，返回 201 和完整的预约。
+6. 插入时由数据库排他约束检查重叠：违反约束后先回滚事务，再把 `23P01` 转为 409 `RESERVATION_CONFLICT`，`data.conflicts` 列出冲突的预约；
+7. 写入成功后返回 201 和完整的预约。
 
 ### 4.4 错误响应
 
@@ -508,18 +509,17 @@ COPY package.json bun.lock ./
 COPY apps/api/package.json apps/api/
 COPY apps/web/package.json apps/web/
 COPY packages/contracts/package.json packages/contracts/
-RUN bun install --frozen-lockfile --filter @venue/api
+RUN bun install --frozen-lockfile --production --filter @venue/api
 
 COPY packages/contracts/ packages/contracts/
 COPY apps/api/ apps/api/
-# tsup bundles the API and all of its dependencies into dist/server.js.
+# Bun bundles the API and all of its dependencies into dist/server.js.
 RUN bun run --cwd apps/api build
 
 # ---- Runtime stage: Node.js with only the bundle and the SQL migrations ----
 FROM node:24.22.0-alpine3.24 AS runtime
 ENV NODE_ENV=production \
-    PORT=3000 \
-    MIGRATIONS_DIR=/app/drizzle
+    PORT=3000
 WORKDIR /app
 
 COPY --from=build /app/apps/api/dist ./dist
@@ -538,11 +538,11 @@ CMD ["node", "dist/server.js"]
 | ---------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `# syntax=docker/dockerfile:1`                             | 使用 Dockerfile 1.x 的 BuildKit 语法                                                                                                                                  |
 | `FROM oven/bun:1.4.2-alpine AS build`                      | 构建阶段：仓库用 Bun 管理依赖和工作区，基础镜像固定到具体版本                                                                                                         |
-| 先 `COPY` 各个 `package.json` 和 `bun.lock`，再 `bun install` | 依赖层只在清单或锁文件变化时重建，修改源码不会触发重新安装。`--frozen-lockfile` 要求依赖与锁文件完全一致；`--filter @venue/api` 只安装 API 所需的依赖。锁文件覆盖所有工作区，所以 web 的 `package.json` 也要复制 |
+| 先 `COPY` 各个 `package.json` 和 `bun.lock`，再 `bun install` | 依赖层只在清单或锁文件变化时重建，修改源码不会触发重新安装。`--frozen-lockfile` 要求依赖与锁文件完全一致；`--production --filter @venue/api` 只安装 API 所需的生产依赖。锁文件覆盖所有工作区，所以 web 的 `package.json` 也要复制 |
 | `COPY packages/contracts/`、`COPY apps/api/`                 | 只复制 API 及其依赖的共享契约，不复制前端源码                                                                                                                         |
-| `RUN bun run --cwd apps/api build`                         | 用 tsup 把 `src/server.ts` 和全部依赖（`noExternal: [/.*/]`）打包成单个 ESM 文件 `dist/server.js`，运行时不再需要 `node_modules`                                       |
-| `FROM node:24.22.0-alpine3.24 AS runtime`                  | 运行阶段：只有 Node.js 运行时，不含 Bun、TypeScript、tsup 等构建工具                                                                                                  |
-| `ENV NODE_ENV=production PORT=3000 MIGRATIONS_DIR=…`       | 只设置非敏感的默认值                                                                                                                                                  |
+| `RUN bun run --cwd apps/api build`                         | 执行 `bun build src/server.ts --target=node --outdir=dist`，把入口和依赖打包成单个 ESM 文件 `dist/server.js`，运行时不再需要 `node_modules`                            |
+| `FROM node:24.22.0-alpine3.24 AS runtime`                  | 运行阶段：只有 Node.js 运行时，不含 Bun、TypeScript 等构建工具                                                                                                        |
+| `ENV NODE_ENV=production PORT=3000`                       | 只设置非敏感的默认值                                                                                                                                                  |
 | `COPY --from=build … ./dist`、`… ./drizzle`                  | 从构建阶段只取打包产物和 SQL 迁移文件                                                                                                                                 |
 | （注释）`DATABASE_URL` 来自运行时环境                        | 数据库地址、用户和密码由 Compose 在创建容器时通过环境变量传入，镜像中没有密码                                                                                          |
 | `USER node`                                                | 以官方 Node 镜像自带的非 root 用户（uid 1000）运行                                                                                                                     |
@@ -553,27 +553,27 @@ CMD ["node", "dist/server.js"]
 
 ```text
 $ docker image inspect venue-booking/api:1.0.0 --format 'User={{.Config.User}} Cmd={{json .Config.Cmd}} Ports={{json .Config.ExposedPorts}} Env={{json .Config.Env}}'
-User=node Cmd=["node","dist/server.js"] Ports={"3000/tcp":{}} Env=["PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin","NODE_VERSION=24.22.0","YARN_VERSION=1.22.22","NODE_ENV=production","PORT=3000","MIGRATIONS_DIR=/app/drizzle"]
+User=node Cmd=["node","dist/server.js"] Ports={"3000/tcp":{}} Env=["PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin","NODE_VERSION=24.22.0","YARN_VERSION=1.22.22","NODE_ENV=production","PORT=3000"]
 
 $ docker compose -p venue-booking-report exec api sh -c 'id; ls -la /app /app/dist /app/drizzle; ls /app/node_modules /app/src'
 uid=1000(node) gid=1000(node) groups=1000(node)
 /app:
 total 16
-drwxr-xr-x    1 root     root          4096 Oct 19 08:11 .
-drwxr-xr-x    1 root     root          4096 Oct 19 08:43 ..
-drwxr-xr-x    2 root     root          4096 Oct 19 08:11 dist
+drwxr-xr-x    1 root     root          4096 Oct 19 13:48 .
+drwxr-xr-x    1 root     root          4096 Oct 19 13:48 ..
+drwxr-xr-x    2 root     root          4096 Oct 19 13:48 dist
 drwxr-xr-x    3 root     root          4096 Oct 19 07:20 drizzle
 
 /app/dist:
-total 1316
-drwxr-xr-x    2 root     root          4096 Oct 19 08:11 .
-drwxr-xr-x    1 root     root          4096 Oct 19 08:11 ..
--rw-r--r--    1 root     root       1337199 Oct 19 08:11 server.js
+total 664
+drwxr-xr-x    2 root     root          4096 Oct 19 13:48 .
+drwxr-xr-x    1 root     root          4096 Oct 19 13:48 ..
+-rw-r--r--    1 root     root        668659 Oct 19 13:48 server.js
 
 /app/drizzle:
 total 20
 drwxr-xr-x    3 root     root          4096 Oct 19 07:20 .
-drwxr-xr-x    1 root     root          4096 Oct 19 08:11 ..
+drwxr-xr-x    1 root     root          4096 Oct 19 13:48 ..
 -rwxr-xr-x    1 root     root          2126 Oct 19 07:20 0000_init.sql
 -rwxr-xr-x    1 root     root           715 Oct 19 07:20 0001_reservations_no_overlap.sql
 drwxr-xr-x    2 root     root          4096 Oct 19 07:20 meta
@@ -585,7 +585,7 @@ postgres://venue:****@database:5432/venue_booking
 # 密码已用 sed 遮盖；主机名为 Compose 服务名 database
 ```
 
-可以看到：镜像以 `node` 用户运行；镜像自身的环境变量中没有 `DATABASE_URL` 或密码；`/app` 下只有约 1.3 MB 的 `dist/server.js` 和迁移文件，没有源码和 `node_modules`；连接地址是容器运行时由 Compose 注入的。
+可以看到：镜像以 `node` 用户运行；镜像自身的环境变量中没有 `DATABASE_URL` 或密码；`/app` 下只有约 0.67 MB 的 `dist/server.js` 和迁移文件，没有源码和 `node_modules`；连接地址是容器运行时由 Compose 注入的。
 
 ### 5.3 前端镜像：`deploy/web/Dockerfile`
 
@@ -607,9 +607,6 @@ RUN bun install --frozen-lockfile --filter @venue/web
 
 COPY packages/contracts/ packages/contracts/
 COPY apps/web/ apps/web/
-# The browser calls the API on its own origin under /api, which nginx proxies.
-# Override at build time to point the app at a different API origin.
-ARG VITE_API_BASE_URL=/api
 RUN bun run --cwd apps/web build
 
 # ---- Runtime stage: unprivileged nginx serving the build and proxying /api ----
@@ -629,7 +626,6 @@ EXPOSE 8080
 | ---------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | 构建阶段 `oven/bun:1.4.2-alpine`                           | 与后端相同的依赖缓存方式；`--filter @venue/web` 只安装前端依赖                                                                                             |
 | `COPY packages/contracts/`、`COPY apps/web/`                 | 只复制前端源码和共享契约                                                                                                                                   |
-| `ARG VITE_API_BASE_URL=/api`                               | 构建参数，默认让前端访问同源的 `/api`；如需把前端指向其他 API 地址，可在构建时用 `--build-arg` 覆盖                                                         |
 | `RUN bun run --cwd apps/web build`                         | 执行 `tsc -b && vite build`，先做类型检查，再输出静态文件到 `apps/web/dist`                                                                                |
 | 运行阶段 `nginxinc/nginx-unprivileged:1.30.6-alpine3.24`   | 官方 nginx 的非 root 变体，以 uid 101 运行，监听非特权端口 8080；运行镜像中没有 Node.js、Bun 和源码                                                         |
 | `ENV API_UPSTREAM=http://api:3000`                         | API 的上游地址，默认指向 Compose 服务 `api`，可在运行时覆盖                                                                                                |
@@ -763,8 +759,8 @@ docker build -f deploy/web/Dockerfile -t venue-booking/frontend:1.0.0 .
 ```text
 $ docker image ls 'venue-booking/*'
 IMAGE                          ID             DISK USAGE   CONTENT SIZE   EXTRA
-venue-booking/api:1.0.0        9b582020609b        245MB         62.7MB   U
-venue-booking/frontend:1.0.0   6eed3d559088         92MB         26.1MB   U
+venue-booking/api:1.0.0        d275c6944478        244MB         62.6MB   U
+venue-booking/frontend:1.0.0   fc2600f8c724         92MB         26.1MB   U
 ```
 
 ## 6. Compose 文件说明
@@ -981,95 +977,102 @@ services:
 | 操作系统 | Windows 11 Pro（10.0.26200）                                                                           |
 | Docker   | Docker Desktop，Docker Engine 29.8.2，WSL 2 后端                                                       |
 | Compose  | `docker compose version` 输出 `Docker Compose version v5.6.0`（Compose 插件，Compose V2 的后续版本，不是旧版独立的 `docker-compose` V1） |
-| 终端     | Git Bash，curl 8.21.0                                                                                  |
-| 时间     | 2026-10-19（东八区时间）：第 3 节和第 7.2–7.10 节记录于 16:39–16:44；第 2.3 节、第 5 节的检查和第 7.5 节末尾的日志检查记录于 19:29–19:36；第 8 节截图拍摄于 19:31–19:41；第 9 节的测试运行于 19:37 |
+| 终端     | PowerShell 7.6.7，curl.exe 8.21.0                                                                        |
+| 时间     | 2026-10-19（东八区时间）                                                                                |
 
-本机已有一套保存着开发数据的默认实例（项目名 `venue-booking`，端口 8080）。为了不影响它，记录时使用了一个独立的临时项目：在 shell 中设置 `FRONTEND_PORT=8090`，所有 Compose 命令都加上 `-p venue-booking-report`。两者使用同一份 `compose.yaml` 和同样的镜像，区别只在于资源名前缀（`venue-booking-report-*`）和主机端口（8090）。按默认方式运行时，去掉 `-p venue-booking-report`，并把 8090 换成 8080 即可，卷名为 `venue-booking_database-data`。记录全部完成后，用 `docker compose -p venue-booking-report down -v` 删除了这个临时项目。
+本机已有一套保存着开发数据的默认实例（项目名 `venue-booking`，端口 8080）。为了不影响它，记录时使用了一个独立的临时项目：在 PowerShell 中设置 `$env:FRONTEND_PORT = '8090'`，所有 Compose 命令都加上 `-p venue-booking-report`。两者使用同一份 `compose.yaml` 和同样的镜像，区别只在于资源名前缀（`venue-booking-report-*`）和主机端口（8090）。按默认方式运行时，去掉 `-p venue-booking-report`，并把 8090 换成 8080 即可，卷名为 `venue-booking_database-data`。记录全部完成后，用 `docker compose -p venue-booking-report down -v` 删除了这个临时项目。
 
-在 PowerShell 中执行本节的 curl 命令时，请使用 `curl.exe` 并转义 JSON 中的双引号，或者改用 Git Bash。
+第 7、9 节的主机命令统一使用 PowerShell 7.6.7 语法，输出块中的 `PS>` 表示提示符，不需输入。`curl.exe` 显式调用可执行文件；JSON 请求体用单引号包裹，按 PowerShell 7 默认的原生命令参数传递方式执行。
 
 ### 7.2 准备配置、构建并启动
 
-```bash
-cp .env.example .env
+```powershell
+Copy-Item .env.example .env
 ```
 
-本次记录直接使用 `.env.example` 中的示例值，并在 shell 中覆盖端口：
+本次记录直接使用 `.env.example` 中的示例值，并在 PowerShell 中覆盖端口：
 
-```bash
-export FRONTEND_PORT=8090
+```powershell
+$env:FRONTEND_PORT = '8090'
 ```
 
 ```text
-$ docker compose -p venue-booking-report up --build -d
- Image venue-booking/api:1.0.0 Building
+PS> docker compose --env-file .env.example -p venue-booking-report up --build -d --wait
  Image venue-booking/frontend:1.0.0 Building
-#2 [api internal] load build definition from Dockerfile
-#2 transferring dockerfile: 1.32kB 0.0s done
-#3 [frontend internal] load build definition from Dockerfile
-#3 transferring dockerfile: 1.42kB done
 ……
-#6 [frontend internal] load metadata for docker.io/oven/bun:1.4.2-alpine
-#7 [frontend internal] load metadata for docker.io/nginxinc/nginx-unprivileged:1.30.6-alpine3.24
-#8 [frontend internal] load .dockerignore
-#8 transferring context: 725B done
+ Image venue-booking/api:1.0.0 Building
 ……
-#13 [frontend build  7/10] RUN bun install --frozen-lockfile --filter @venue/web
-#13 CACHED
+#2 transferring dockerfile: 1.30kB 0.0s done
 ……
-#22 [frontend build 10/10] RUN bun run --cwd apps/web build
-#22 CACHED
-#23 [frontend runtime 3/3] COPY --from=build /app/apps/web/dist /usr/share/nginx/html
-#23 CACHED
+#3 transferring dockerfile: 1.25kB 0.0s done
 ……
-#24 naming to docker.io/venue-booking/frontend:1.0.0 done
-#9 [api internal] load metadata for docker.io/library/node:24.22.0-alpine3.24
-#9 DONE 2.0s
+#18 [api build  7/10] RUN bun install --frozen-lockfile --production --filter @venue/api
+#18 CACHED
 ……
-#29 [api build  7/10] RUN bun install --frozen-lockfile --filter @venue/api
-#29 CACHED
+#24 [frontend build 10/10] RUN bun run --cwd apps/web build
+#24 CACHED
 ……
-#31 [api runtime 3/4] COPY --from=build /app/apps/api/dist ./dist
-#31 CACHED
-#32 [api build 10/10] RUN bun run --cwd apps/api build
-#32 CACHED
+#30 [frontend build  7/10] RUN bun install --frozen-lockfile --filter @venue/web
+#30 CACHED
 ……
-#37 [api runtime 4/4] COPY --from=build /app/apps/api/drizzle ./drizzle
-#37 CACHED
+#33 naming to docker.io/venue-booking/frontend:1.0.0 0.0s done
+……
+#34 [api build 10/10] RUN bun run --cwd apps/api build
+……
+……
+#34 0.735 Bundled 290 modules in 113ms
+……
+#34 0.735   server.js  0.67 MB  (entry point)
 ……
 #39 naming to docker.io/venue-booking/api:1.0.0 done
 ……
  Image venue-booking/api:1.0.0 Built
+……
  Image venue-booking/frontend:1.0.0 Built
 ……
  Volume venue-booking-report_database-data Created
+……
+……
  Network venue-booking-report_frontend-net Created
+……
+……
  Network venue-booking-report_backend-net Created
+……
+……
  Container venue-booking-report-database-1 Created
+……
  Container venue-booking-report-api-1 Created
+……
  Container venue-booking-report-frontend-1 Created
+……
  Container venue-booking-report-database-1 Started
- Container venue-booking-report-database-1 Waiting
+……
  Container venue-booking-report-database-1 Healthy
+……
  Container venue-booking-report-api-1 Started
- Container venue-booking-report-api-1 Waiting
+……
  Container venue-booking-report-api-1 Healthy
+……
  Container venue-booking-report-frontend-1 Started
+……
+……
+……
+ Container venue-booking-report-frontend-1 Healthy
 ```
 
 - 两个镜像并行构建，步骤名中的 `build` 和 `runtime` 分别对应 Dockerfile 的两个阶段，`COPY --from=build` 把构建阶段的产物复制到运行阶段；
-- 本机此前已构建过这两个镜像，源码没有变化，所以各步骤都命中了构建缓存（`CACHED`）。在全新的机器上，这些步骤会实际执行依赖安装和打包；
+- 依赖安装和前端构建命中了构建缓存（`CACHED`）；API 源码的复制、打包和运行阶段产物复制实际执行。在全新的机器上，依赖安装和前端打包也会实际执行；
 - 构建完成后依次创建卷、两个网络和三个容器，并按依赖顺序启动：数据库健康后才启动 API，API 健康后才启动前端；
-- 从执行命令到最后一个容器启动共约 18 秒。
+- `--wait` 等待三个服务全部健康后才返回，本次构建和启动成功。
 
 ### 7.3 查看容器状态
 
 ```text
-$ docker compose -p venue-booking-report ps
-NAME                              IMAGE                          COMMAND                  SERVICE    CREATED              STATUS                        PORTS
-venue-booking-report-api-1        venue-booking/api:1.0.0        "docker-entrypoint.s…"   api        About a minute ago   Up About a minute (healthy)   3000/tcp
-venue-booking-report-database-1   postgres:18.6-alpine3.24       "docker-entrypoint.s…"   database   About a minute ago   Up About a minute (healthy)   5432/tcp
-venue-booking-report-frontend-1   venue-booking/frontend:1.0.0   "/docker-entrypoint.…"   frontend   About a minute ago   Up About a minute (healthy)   0.0.0.0:8090->8080/tcp, [::]:8090->8080/tcp
+PS> docker compose -p venue-booking-report ps
+NAME                              IMAGE                          COMMAND                  SERVICE    CREATED         STATUS                    PORTS
+venue-booking-report-api-1        venue-booking/api:1.0.0        "docker-entrypoint.s…"   api        4 minutes ago   Up 29 seconds (healthy)   3000/tcp
+venue-booking-report-database-1   postgres:18.6-alpine3.24       "docker-entrypoint.s…"   database   4 minutes ago   Up 4 minutes (healthy)    5432/tcp
+venue-booking-report-frontend-1   venue-booking/frontend:1.0.0   "/docker-entrypoint.…"   frontend   8 seconds ago   Up 6 seconds (healthy)    0.0.0.0:8090->8080/tcp, [::]:8090->8080/tcp
 ```
 
 三个服务的容器均已创建并处于 `Up … (healthy)` 状态，说明三项健康检查（`pg_isready`、`/api/health`、`/healthz`）都已通过。`PORTS` 一列中只有 `frontend` 发布了主机端口（`0.0.0.0:8090->8080/tcp`），`api` 的 `3000/tcp` 和 `database` 的 `5432/tcp` 只在容器网络内可用。
@@ -1077,10 +1080,10 @@ venue-booking-report-frontend-1   venue-booking/frontend:1.0.0   "/docker-entryp
 ### 7.4 健康检查与前端访问
 
 ```text
-$ curl -s http://localhost:8090/api/health
+PS> curl.exe -s http://localhost:8090/api/health
 {"status":"ok","database":"up"}
 
-$ curl -s -o /dev/null -w '%{http_code} %{content_type}\n' http://localhost:8090/
+PS> curl.exe -s -o NUL -w '%{http_code} %{content_type}\n' http://localhost:8090/
 200 text/html
 ```
 
@@ -1089,7 +1092,7 @@ $ curl -s -o /dev/null -w '%{http_code} %{content_type}\n' http://localhost:8090
 ### 7.5 服务日志
 
 ```text
-$ docker compose -p venue-booking-report logs api
+PS> docker compose -p venue-booking-report logs api
 api-1  | Database migrations are up to date
 api-1  | Seeded 6 demo venues
 api-1  | API listening on http://0.0.0.0:3000
@@ -1098,80 +1101,81 @@ api-1  | API listening on http://0.0.0.0:3000
 API 首次启动时执行了迁移，并因数据库为空写入了 6 个演示场地。
 
 ```text
-$ docker compose -p venue-booking-report logs database
+PS> docker compose -p venue-booking-report logs database
 database-1  | The files belonging to this database system will be owned by user "postgres".
 ……
 database-1  | fixing permissions on existing directory /var/lib/postgresql/18/docker ... ok
 ……
 database-1  | sh: locale: not found
-database-1  | 2026-10-19 08:40:01.419 UTC [40] WARNING:  no usable system locales were found
+……
+database-1  | 2026-10-19 13:48:57.291 UTC [41] WARNING:  no usable system locales were found
+……
 database-1  | performing post-bootstrap initialization ... ok
+……
 database-1  | initdb: warning: enabling "trust" authentication for local connections
 ……
 database-1  | CREATE DATABASE
 ……
 database-1  | PostgreSQL init process complete; ready for start up.
-database-1  |
-database-1  | 2026-10-19 08:40:02.352 UTC [1] LOG:  starting PostgreSQL 18.6 on x86_64-pc-linux-musl, compiled by gcc (Alpine 15.2.0) 15.2.0, 64-bit
-database-1  | 2026-10-19 08:40:02.352 UTC [1] LOG:  listening on IPv4 address "0.0.0.0", port 5432
-database-1  | 2026-10-19 08:40:02.352 UTC [1] LOG:  listening on IPv6 address "::", port 5432
-database-1  | 2026-10-19 08:40:02.362 UTC [1] LOG:  listening on Unix socket "/var/run/postgresql/.s.PGSQL.5432"
-database-1  | 2026-10-19 08:40:02.373 UTC [68] LOG:  database system was shut down at 2026-10-19 08:40:02 UTC
-database-1  | 2026-10-19 08:40:02.381 UTC [1] LOG:  database system is ready to accept connections
+……
+database-1  | 2026-10-19 13:48:58.919 UTC [1] LOG:  starting PostgreSQL 18.6 on x86_64-pc-linux-musl, compiled by gcc (Alpine 15.2.0) 15.2.0, 64-bit
+……
+database-1  | 2026-10-19 13:48:58.919 UTC [1] LOG:  listening on IPv4 address "0.0.0.0", port 5432
+……
+database-1  | 2026-10-19 13:48:58.919 UTC [1] LOG:  listening on IPv6 address "::", port 5432
+……
+database-1  | 2026-10-19 13:48:58.932 UTC [1] LOG:  listening on Unix socket "/var/run/postgresql/.s.PGSQL.5432"
+……
+database-1  | 2026-10-19 13:48:58.962 UTC [1] LOG:  database system is ready to accept connections
 ```
 
 首次启动时，官方镜像的入口脚本初始化数据目录、按环境变量创建数据库和用户，然后正式启动。初始化过程中的两条提示都只在首次初始化时出现一次：Alpine 镜像不带系统 locale（不影响 UTF-8 编码），以及容器内通过 Unix 套接字的本地连接免密码（官方镜像的默认行为；API 通过网络连接，需要 `POSTGRES_PASSWORD` 中的密码）。数据目录已存在时不会重新初始化。
 
 ```text
-$ docker compose -p venue-booking-report logs frontend
+PS> docker compose -p venue-booking-report logs frontend
 frontend-1  | /docker-entrypoint.sh: /docker-entrypoint.d/ is not empty, will attempt to perform configuration
 ……
+frontend-1  | /docker-entrypoint.sh: Looking for shell scripts in /docker-entrypoint.d/
+……
+frontend-1  | /docker-entrypoint.sh: Launching /docker-entrypoint.d/10-listen-on-ipv6-by-default.sh
+……
+frontend-1  | 10-listen-on-ipv6-by-default.sh: info: Getting the checksum of /etc/nginx/conf.d/default.conf
+……
+frontend-1  | 10-listen-on-ipv6-by-default.sh: info: /etc/nginx/conf.d/default.conf differs from the packaged version
+……
 frontend-1  | /docker-entrypoint.sh: Sourcing /docker-entrypoint.d/15-local-resolvers.envsh
+……
 frontend-1  | /docker-entrypoint.sh: Launching /docker-entrypoint.d/20-envsubst-on-templates.sh
+……
 frontend-1  | 20-envsubst-on-templates.sh: Running envsubst on /etc/nginx/templates/default.conf.template to /etc/nginx/conf.d/default.conf
+……
+frontend-1  | /docker-entrypoint.sh: Launching /docker-entrypoint.d/30-tune-worker-processes.sh
 ……
 frontend-1  | /docker-entrypoint.sh: Configuration complete; ready for start up
 ……
-frontend-1  | 2026/10/19 08:40:12 [notice] 1#1: nginx/1.30.6
+frontend-1  | 2026/10/19 13:53:26 [notice] 1#1: nginx/1.30.6
 ……
-frontend-1  | 2026/10/19 08:40:12 [notice] 1#1: start worker processes
-……
-frontend-1  | 172.21.0.1 - - [19/Oct/2026:08:41:17 +0000] "GET /api/health HTTP/1.1" 200 31 "-" "curl/8.21.0" "-"
-frontend-1  | 172.21.0.1 - - [19/Oct/2026:08:41:17 +0000] "GET / HTTP/1.1" 200 1263 "-" "curl/8.21.0" "-"
+frontend-1  | 2026/10/19 13:53:26 [notice] 1#1: start worker processes
 ```
 
-nginx 启动时，入口脚本先读取 DNS 服务器（`15-local-resolvers.envsh`），再用 `envsubst` 渲染配置模板（第 5.4 节），之后开始处理请求。最后两行是第 7.4 节两次 curl 请求的访问日志。
+nginx 启动时，入口脚本先读取 DNS 服务器（`15-local-resolvers.envsh`），再用 `envsubst` 渲染配置模板（第 5.4 节），之后开始处理请求。请求处理后，访问日志会记录请求路径、状态码和响应大小。
 
-在完成第 7、8 节的全部操作（包括 Playwright 截图）之后，再次检查日志：
+完成功能验证后，再次检查日志：
 
 ```text
-$ docker compose -p venue-booking-report logs --no-log-prefix | grep -ciE 'error|fatal|panic'
+PS> (docker compose -p venue-booking-report logs --no-log-prefix | Select-String -Pattern 'error|fatal|panic' | Measure-Object).Count
 0
 
-$ docker compose -p venue-booking-report logs api
+PS> docker compose -p venue-booking-report logs api
 api-1  | Database migrations are up to date
 api-1  | API listening on http://0.0.0.0:3000
-api-1  | GET /api/reservations/2 200 24ms
-api-1  | GET /api/reservations/1 200 5ms
-api-1  | SIGTERM received, shutting down
-api-1  | Database migrations are up to date
-api-1  | API listening on http://0.0.0.0:3000
-api-1  | GET /api/reservations 200 64ms
-api-1  | POST /api/reservations 201 57ms
-……
-api-1  | POST /api/reservations 201 14ms
-api-1  | GET /api/reservations 200 3ms
-api-1  | GET /api/reservations/12 200 3ms
-api-1  | GET /api/venues/2 200 3ms
-api-1  | GET /api/reservations 200 5ms
-api-1  | POST /api/reservations 409 7ms
-api-1  | GET /api/reservations 200 3ms
-api-1  | GET /api/reservations/12 200 5ms
-api-1  | POST /api/reservations/12/cancel 200 13ms
-……
+api-1  | GET /api/reservations 200 68ms
+api-1  | GET /api/reservations/1 200 11ms
+api-1  | GET /api/reservations/3 200 4ms
+api-1  | GET /api/reservations/3 200 4ms
 ```
 
-三个服务的日志中没有任何包含 `error`、`fatal` 或 `panic` 的行。API 对每个请求记录一行“方法、路径、状态码、耗时”（健康检查请求不记录，避免每 10 秒一行刷屏）；409 等预期内的业务错误只作为普通请求记录。日志中的 `SIGTERM received, shutting down` 是容器被停止时的正常退出，之后容器重新启动，迁移检查通过，没有重复写入演示场地（第 7.9 节）。
+三个服务的日志中没有任何包含 `error`、`fatal` 或 `panic` 的行。API 对每个请求记录一行“方法、路径、状态码、耗时”（健康检查请求不记录，避免每 10 秒一行刷屏）；409 等预期内的业务错误只作为普通请求记录。容器重新创建后，迁移检查通过，没有重复写入演示场地（第 7.9 节）。
 
 ### 7.6 基本功能验证（实验要求 8.1）
 
@@ -1180,55 +1184,55 @@ api-1  | POST /api/reservations/12/cancel 200 13ms
 2\. 查询场地列表和场地详情：
 
 ```text
-$ curl -sS http://localhost:8090/api/venues
-[{"id":1,"name":"Aurora Lecture Hall","location":"Teaching Building A, 1F","capacity":180,"openTime":"08:00","closeTime":"22:00","status":"open","description":"Tiered seating with dual projectors, lecture capture and a wireless microphone kit.","createdAt":"2026-10-19T08:40:07.085Z"},{"id":2,"name":"Seminar Room 305","location":"Teaching Building B, 3F","capacity":32,"openTime":"08:00","closeTime":"21:00","status":"open","description":"Movable tables for workshops and group discussions, with a 75-inch display.","createdAt":"2026-10-19T08:40:07.085Z"},{"id":3,"name":"Maple Meeting Room","location":"Library, 4F","capacity":12,"openTime":"09:00","closeTime":"18:00","status":"open","description":"Quiet boardroom with a video-conferencing camera and whiteboard wall.","createdAt":"2026-10-19T08:40:07.085Z"},{"id":4,"name":"Badminton Court 2","location":"Sports Center, Hall 1","capacity":8,"openTime":"07:00","closeTime":"22:00","status":"open","description":"Full-size indoor court. Rackets can be borrowed at the front desk.","createdAt":"2026-10-19T08:40:07.085Z"},{"id":5,"name":"Black Box Studio","location":"Arts Center, B1","capacity":60,"openTime":"10:00","closeTime":"22:00","status":"open","description":"Flexible performance space with stage lighting, sound system and sprung floor.","createdAt":"2026-10-19T08:40:07.085Z"},{"id":6,"name":"Rooftop Garden","location":"Student Center, Rooftop","capacity":80,"openTime":"09:00","closeTime":"20:00","status":"disabled","description":"Closed for waterproofing maintenance until further notice.","createdAt":"2026-10-19T08:40:07.085Z"}]
+PS> curl.exe -sS http://localhost:8090/api/venues
+[{"id":1,"name":"Aurora Lecture Hall","location":"Teaching Building A, 1F","capacity":180,"openTime":"08:00","closeTime":"22:00","status":"open","description":"Tiered seating with dual projectors, lecture capture and a wireless microphone kit.","createdAt":"2026-10-19T13:53:03.636Z"},{"id":2,"name":"Seminar Room 305","location":"Teaching Building B, 3F","capacity":32,"openTime":"08:00","closeTime":"21:00","status":"open","description":"Movable tables for workshops and group discussions, with a 75-inch display.","createdAt":"2026-10-19T13:53:03.636Z"},{"id":3,"name":"Maple Meeting Room","location":"Library, 4F","capacity":12,"openTime":"09:00","closeTime":"18:00","status":"open","description":"Quiet boardroom with a video-conferencing camera and whiteboard wall.","createdAt":"2026-10-19T13:53:03.636Z"},{"id":4,"name":"Badminton Court 2","location":"Sports Center, Hall 1","capacity":8,"openTime":"07:00","closeTime":"22:00","status":"open","description":"Full-size indoor court. Rackets can be borrowed at the front desk.","createdAt":"2026-10-19T13:53:03.636Z"},{"id":5,"name":"Black Box Studio","location":"Arts Center, B1","capacity":60,"openTime":"10:00","closeTime":"22:00","status":"open","description":"Flexible performance space with stage lighting, sound system and sprung floor.","createdAt":"2026-10-19T13:53:03.636Z"},{"id":6,"name":"Rooftop Garden","location":"Student Center, Rooftop","capacity":80,"openTime":"09:00","closeTime":"20:00","status":"disabled","description":"Closed for waterproofing maintenance until further notice.","createdAt":"2026-10-19T13:53:03.636Z"}]
 
-$ curl -sS -i http://localhost:8090/api/venues/3
+PS> curl.exe -sS -i http://localhost:8090/api/venues/3
 HTTP/1.1 200 OK
 Server: nginx/1.30.6
-Date: Mon, 19 Oct 2026 08:42:37 GMT
+Date: Mon, 19 Oct 2026 13:53:37 GMT
 Content-Type: application/json
 Transfer-Encoding: chunked
 Connection: keep-alive
 
-{"id":3,"name":"Maple Meeting Room","location":"Library, 4F","capacity":12,"openTime":"09:00","closeTime":"18:00","status":"open","description":"Quiet boardroom with a video-conferencing camera and whiteboard wall.","createdAt":"2026-10-19T08:40:07.085Z"}
+{"id":3,"name":"Maple Meeting Room","location":"Library, 4F","capacity":12,"openTime":"09:00","closeTime":"18:00","status":"open","description":"Quiet boardroom with a video-conferencing camera and whiteboard wall.","createdAt":"2026-10-19T13:53:03.636Z"}
 ```
 
 3\. 创建一个正常的预约（Maple Meeting Room，2026-10-30 14:00–15:30）：
 
 ```text
-$ curl -sS -i -X POST http://localhost:8090/api/reservations -H 'content-type: application/json' -d '{"venueId":3,"bookerName":"Robotics Club","attendeeCount":8,"date":"2026-10-30","startTime":"14:00","endTime":"15:30","purpose":"Sprint planning"}'
+PS> curl.exe -sS -i -X POST http://localhost:8090/api/reservations -H 'content-type: application/json' -d '{"venueId":3,"bookerName":"Robotics Club","attendeeCount":8,"date":"2026-10-30","startTime":"14:00","endTime":"15:30","purpose":"Sprint planning"}'
 HTTP/1.1 201 Created
 Server: nginx/1.30.6
-Date: Mon, 19 Oct 2026 08:42:37 GMT
+Date: Mon, 19 Oct 2026 13:53:37 GMT
 Content-Type: application/json
 Transfer-Encoding: chunked
 Connection: keep-alive
 
-{"id":1,"venueId":3,"venue":{"id":3,"name":"Maple Meeting Room","location":"Library, 4F"},"bookerName":"Robotics Club","attendeeCount":8,"date":"2026-10-30","startTime":"14:00","endTime":"15:30","purpose":"Sprint planning","status":"confirmed","createdAt":"2026-10-19T08:42:37.245Z","cancelledAt":null}
+{"id":1,"venueId":3,"venue":{"id":3,"name":"Maple Meeting Room","location":"Library, 4F"},"bookerName":"Robotics Club","attendeeCount":8,"date":"2026-10-30","startTime":"14:00","endTime":"15:30","purpose":"Sprint planning","status":"confirmed","createdAt":"2026-10-19T13:53:37.224Z","cancelledAt":null}
 ```
 
 4\. 查询刚创建的预约（编号 1）：
 
 ```text
-$ curl -sS -i http://localhost:8090/api/reservations/1
+PS> curl.exe -sS -i http://localhost:8090/api/reservations/1
 HTTP/1.1 200 OK
 Server: nginx/1.30.6
-Date: Mon, 19 Oct 2026 08:42:37 GMT
+Date: Mon, 19 Oct 2026 13:53:37 GMT
 Content-Type: application/json
 Transfer-Encoding: chunked
 Connection: keep-alive
 
-{"id":1,"venueId":3,"venue":{"id":3,"name":"Maple Meeting Room","location":"Library, 4F"},"bookerName":"Robotics Club","attendeeCount":8,"date":"2026-10-30","startTime":"14:00","endTime":"15:30","purpose":"Sprint planning","status":"confirmed","createdAt":"2026-10-19T08:42:37.245Z","cancelledAt":null}
+{"id":1,"venueId":3,"venue":{"id":3,"name":"Maple Meeting Room","location":"Library, 4F"},"bookerName":"Robotics Club","attendeeCount":8,"date":"2026-10-30","startTime":"14:00","endTime":"15:30","purpose":"Sprint planning","status":"confirmed","createdAt":"2026-10-19T13:53:37.224Z","cancelledAt":null}
 ```
 
 5\. 为同一场地、同一天提交与之重叠的 15:00–16:00，后端拒绝：
 
 ```text
-$ curl -sS -i -X POST http://localhost:8090/api/reservations -H 'content-type: application/json' -d '{"venueId":3,"bookerName":"Chess Club","attendeeCount":6,"date":"2026-10-30","startTime":"15:00","endTime":"16:00","purpose":"Weekly practice"}'
+PS> curl.exe -sS -i -X POST http://localhost:8090/api/reservations -H 'content-type: application/json' -d '{"venueId":3,"bookerName":"Chess Club","attendeeCount":6,"date":"2026-10-30","startTime":"15:00","endTime":"16:00","purpose":"Weekly practice"}'
 HTTP/1.1 409 Conflict
 Server: nginx/1.30.6
-Date: Mon, 19 Oct 2026 08:42:37 GMT
+Date: Mon, 19 Oct 2026 13:53:37 GMT
 Content-Type: application/json
 Transfer-Encoding: chunked
 Connection: keep-alive
@@ -1239,36 +1243,36 @@ Connection: keep-alive
 6\. 取消预约 1：
 
 ```text
-$ curl -sS -i -X POST http://localhost:8090/api/reservations/1/cancel
+PS> curl.exe -sS -i -X POST http://localhost:8090/api/reservations/1/cancel
 HTTP/1.1 200 OK
 Server: nginx/1.30.6
-Date: Mon, 19 Oct 2026 08:42:37 GMT
+Date: Mon, 19 Oct 2026 13:53:37 GMT
 Content-Type: application/json
 Transfer-Encoding: chunked
 Connection: keep-alive
 
-{"id":1,"venueId":3,"venue":{"id":3,"name":"Maple Meeting Room","location":"Library, 4F"},"bookerName":"Robotics Club","attendeeCount":8,"date":"2026-10-30","startTime":"14:00","endTime":"15:30","purpose":"Sprint planning","status":"cancelled","createdAt":"2026-10-19T08:42:37.245Z","cancelledAt":"2026-10-19T08:42:37.508Z"}
+{"id":1,"venueId":3,"venue":{"id":3,"name":"Maple Meeting Room","location":"Library, 4F"},"bookerName":"Robotics Club","attendeeCount":8,"date":"2026-10-30","startTime":"14:00","endTime":"15:30","purpose":"Sprint planning","status":"cancelled","createdAt":"2026-10-19T13:53:37.224Z","cancelledAt":"2026-10-19T13:53:37.538Z"}
 ```
 
 7\. 取消后，再次提交第 5 步中同一时段的预约：
 
 ```text
-$ curl -sS -i -X POST http://localhost:8090/api/reservations -H 'content-type: application/json' -d '{"venueId":3,"bookerName":"Chess Club","attendeeCount":6,"date":"2026-10-30","startTime":"15:00","endTime":"16:00","purpose":"Weekly practice"}'
+PS> curl.exe -sS -i -X POST http://localhost:8090/api/reservations -H 'content-type: application/json' -d '{"venueId":3,"bookerName":"Chess Club","attendeeCount":6,"date":"2026-10-30","startTime":"15:00","endTime":"16:00","purpose":"Weekly practice"}'
 HTTP/1.1 201 Created
 Server: nginx/1.30.6
-Date: Mon, 19 Oct 2026 08:42:37 GMT
+Date: Mon, 19 Oct 2026 13:53:37 GMT
 Content-Type: application/json
 Transfer-Encoding: chunked
 Connection: keep-alive
 
-{"id":2,"venueId":3,"venue":{"id":3,"name":"Maple Meeting Room","location":"Library, 4F"},"bookerName":"Chess Club","attendeeCount":6,"date":"2026-10-30","startTime":"15:00","endTime":"16:00","purpose":"Weekly practice","status":"confirmed","createdAt":"2026-10-19T08:42:37.573Z","cancelledAt":null}
+{"id":3,"venueId":3,"venue":{"id":3,"name":"Maple Meeting Room","location":"Library, 4F"},"bookerName":"Chess Club","attendeeCount":6,"date":"2026-10-30","startTime":"15:00","endTime":"16:00","purpose":"Weekly practice","status":"confirmed","createdAt":"2026-10-19T13:53:37.643Z","cancelledAt":null}
 ```
 
-最后查询该场地当天的全部预约：
+最后查询该场地当天的全部预约（插入失败也会消耗自增编号，因此编号不要求连续）：
 
 ```text
-$ curl -sS 'http://localhost:8090/api/reservations?venueId=3&date=2026-10-30'
-[{"id":1,"venueId":3,"venue":{"id":3,"name":"Maple Meeting Room","location":"Library, 4F"},"bookerName":"Robotics Club","attendeeCount":8,"date":"2026-10-30","startTime":"14:00","endTime":"15:30","purpose":"Sprint planning","status":"cancelled","createdAt":"2026-10-19T08:42:37.245Z","cancelledAt":"2026-10-19T08:42:37.508Z"},{"id":2,"venueId":3,"venue":{"id":3,"name":"Maple Meeting Room","location":"Library, 4F"},"bookerName":"Chess Club","attendeeCount":6,"date":"2026-10-30","startTime":"15:00","endTime":"16:00","purpose":"Weekly practice","status":"confirmed","createdAt":"2026-10-19T08:42:37.573Z","cancelledAt":null}]
+PS> curl.exe -sS 'http://localhost:8090/api/reservations?venueId=3&date=2026-10-30'
+[{"id":1,"venueId":3,"venue":{"id":3,"name":"Maple Meeting Room","location":"Library, 4F"},"bookerName":"Robotics Club","attendeeCount":8,"date":"2026-10-30","startTime":"14:00","endTime":"15:30","purpose":"Sprint planning","status":"cancelled","createdAt":"2026-10-19T13:53:37.224Z","cancelledAt":"2026-10-19T13:53:37.538Z"},{"id":3,"venueId":3,"venue":{"id":3,"name":"Maple Meeting Room","location":"Library, 4F"},"bookerName":"Chess Club","attendeeCount":6,"date":"2026-10-30","startTime":"15:00","endTime":"16:00","purpose":"Weekly practice","status":"confirmed","createdAt":"2026-10-19T13:53:37.643Z","cancelledAt":null}]
 ```
 
 | 步骤 | 请求                                              | 状态码 | 结果                                                         |
@@ -1278,92 +1282,92 @@ $ curl -sS 'http://localhost:8090/api/reservations?venueId=3&date=2026-10-30'
 | 4    | `GET /api/reservations/1`                         | 200    | 返回预约 1                                                   |
 | 5    | `POST /api/reservations`，15:00–16:00             | 409    | `RESERVATION_CONFLICT`，`data.conflicts` 指出与预约 1 重叠   |
 | 6    | `POST /api/reservations/1/cancel`                 | 200    | 状态变为 `cancelled`，记录取消时间                           |
-| 7    | 再次 `POST /api/reservations`，15:00–16:00        | 201    | 新预约编号 2：已取消的预约不再占用时段，符合设计             |
-| —    | `GET /api/reservations?venueId=3&date=2026-10-30` | 200    | 预约 1（已取消，记录保留）和预约 2（已确认）                 |
+| 7    | 再次 `POST /api/reservations`，15:00–16:00        | 201    | 新预约编号 3：已取消的预约不再占用时段，符合设计             |
+| —    | `GET /api/reservations?venueId=3&date=2026-10-30` | 200    | 预约 1（已取消，记录保留）和预约 3（已确认）                 |
 
 ### 7.7 参数校验与错误处理
 
 ```text
 # 字段不合法：预约人为空、人数为 0、日期不存在、时间格式错误
-$ curl -sS -X POST http://localhost:8090/api/reservations -H 'content-type: application/json' -d '{"venueId":3,"bookerName":"","attendeeCount":0,"date":"2026-02-30","startTime":"9am","endTime":"10:00","purpose":"Review"}'
+PS> curl.exe -sS -X POST http://localhost:8090/api/reservations -H 'content-type: application/json' -d '{"venueId":3,"bookerName":"","attendeeCount":0,"date":"2026-02-30","startTime":"9am","endTime":"10:00","purpose":"Review"}'
 {"defined":false,"code":"BAD_REQUEST","status":400,"message":"Input validation failed","data":{"issues":[{"path":["bookerName"],"message":"Name is required"},{"path":["attendeeCount"],"message":"Too small: expected number to be >=1"},{"path":["date"],"message":"Use a valid date in YYYY-MM-DD format"},{"path":["startTime"],"message":"Use the 24-hour HH:mm format"},{"path":["endTime"],"message":"End time must be later than start time"}]}}
 HTTP 400
 
 # 结束时间早于开始时间
-$ curl -sS -X POST http://localhost:8090/api/reservations -H 'content-type: application/json' -d '{"venueId":3,"bookerName":"Robotics Club","attendeeCount":4,"date":"2026-10-30","startTime":"11:00","endTime":"10:00","purpose":"Review"}'
+PS> curl.exe -sS -X POST http://localhost:8090/api/reservations -H 'content-type: application/json' -d '{"venueId":3,"bookerName":"Robotics Club","attendeeCount":4,"date":"2026-10-30","startTime":"11:00","endTime":"10:00","purpose":"Review"}'
 {"defined":false,"code":"BAD_REQUEST","status":400,"message":"Input validation failed","data":{"issues":[{"path":["endTime"],"message":"End time must be later than start time"}]}}
 HTTP 400
 
 # JSON 格式错误
-$ curl -sS -X POST http://localhost:8090/api/reservations -H 'content-type: application/json' -d '{"venueId":3,'
+PS> curl.exe -sS -X POST http://localhost:8090/api/reservations -H 'content-type: application/json' -d '{"venueId":3,'
 {"defined":false,"code":"BAD_REQUEST","status":400,"message":"Malformed request. Ensure the request body is properly formatted and the 'Content-Type' header is set correctly."}
 HTTP 400
 
 # 场地已停用（Rooftop Garden）
-$ curl -sS -X POST http://localhost:8090/api/reservations -H 'content-type: application/json' -d '{"venueId":6,"bookerName":"Robotics Club","attendeeCount":4,"date":"2026-10-30","startTime":"10:00","endTime":"11:00","purpose":"Review"}'
+PS> curl.exe -sS -X POST http://localhost:8090/api/reservations -H 'content-type: application/json' -d '{"venueId":6,"bookerName":"Robotics Club","attendeeCount":4,"date":"2026-10-30","startTime":"10:00","endTime":"11:00","purpose":"Review"}'
 {"defined":true,"code":"VENUE_DISABLED","status":400,"message":"This venue is disabled and does not accept reservations"}
 HTTP 400
 
 # 超出开放时间（场地 3 开放 09:00–18:00）
-$ curl -sS -X POST http://localhost:8090/api/reservations -H 'content-type: application/json' -d '{"venueId":3,"bookerName":"Robotics Club","attendeeCount":4,"date":"2026-10-30","startTime":"08:00","endTime":"09:30","purpose":"Review"}'
+PS> curl.exe -sS -X POST http://localhost:8090/api/reservations -H 'content-type: application/json' -d '{"venueId":3,"bookerName":"Robotics Club","attendeeCount":4,"date":"2026-10-30","startTime":"08:00","endTime":"09:30","purpose":"Review"}'
 {"defined":true,"code":"OUTSIDE_OPENING_HOURS","status":400,"message":"Maple Meeting Room is open from 09:00 to 18:00","data":{"openTime":"09:00","closeTime":"18:00"}}
 HTTP 400
 
 # 预约已经过去的日期
-$ curl -sS -X POST http://localhost:8090/api/reservations -H 'content-type: application/json' -d '{"venueId":3,"bookerName":"Robotics Club","attendeeCount":4,"date":"2026-10-18","startTime":"10:00","endTime":"11:00","purpose":"Review"}'
+PS> curl.exe -sS -X POST http://localhost:8090/api/reservations -H 'content-type: application/json' -d '{"venueId":3,"bookerName":"Robotics Club","attendeeCount":4,"date":"2026-10-18","startTime":"10:00","endTime":"11:00","purpose":"Review"}'
 {"defined":true,"code":"RESERVATION_IN_PAST","status":400,"message":"The reservation must start in the future"}
 HTTP 400
 
 # 人数超过容量（场地 3 最多 12 人）
-$ curl -sS -X POST http://localhost:8090/api/reservations -H 'content-type: application/json' -d '{"venueId":3,"bookerName":"Robotics Club","attendeeCount":20,"date":"2026-10-30","startTime":"10:00","endTime":"11:00","purpose":"Review"}'
+PS> curl.exe -sS -X POST http://localhost:8090/api/reservations -H 'content-type: application/json' -d '{"venueId":3,"bookerName":"Robotics Club","attendeeCount":20,"date":"2026-10-30","startTime":"10:00","endTime":"11:00","purpose":"Review"}'
 {"defined":true,"code":"CAPACITY_EXCEEDED","status":400,"message":"Maple Meeting Room holds at most 12 people","data":{"capacity":12}}
 HTTP 400
 
 # 场地不存在
-$ curl -sS -X POST http://localhost:8090/api/reservations -H 'content-type: application/json' -d '{"venueId":99,"bookerName":"Robotics Club","attendeeCount":4,"date":"2026-10-30","startTime":"10:00","endTime":"11:00","purpose":"Review"}'
+PS> curl.exe -sS -X POST http://localhost:8090/api/reservations -H 'content-type: application/json' -d '{"venueId":99,"bookerName":"Robotics Club","attendeeCount":4,"date":"2026-10-30","startTime":"10:00","endTime":"11:00","purpose":"Review"}'
 {"defined":true,"code":"VENUE_NOT_FOUND","status":404,"message":"Venue not found"}
 HTTP 404
 
-$ curl -sS http://localhost:8090/api/venues/99
+PS> curl.exe -sS http://localhost:8090/api/venues/99
 {"defined":true,"code":"VENUE_NOT_FOUND","status":404,"message":"Venue not found"}
 HTTP 404
 
 # 预约不存在（查询和取消）
-$ curl -sS http://localhost:8090/api/reservations/9999
+PS> curl.exe -sS http://localhost:8090/api/reservations/9999
 {"defined":true,"code":"RESERVATION_NOT_FOUND","status":404,"message":"Reservation not found"}
 HTTP 404
 
-$ curl -sS -X POST http://localhost:8090/api/reservations/9999/cancel
+PS> curl.exe -sS -X POST http://localhost:8090/api/reservations/9999/cancel
 {"defined":true,"code":"RESERVATION_NOT_FOUND","status":404,"message":"Reservation not found"}
 HTTP 404
 
 # 路径参数不是数字
-$ curl -sS http://localhost:8090/api/reservations/abc
+PS> curl.exe -sS http://localhost:8090/api/reservations/abc
 {"defined":false,"code":"BAD_REQUEST","status":400,"message":"Input validation failed","data":{"issues":[{"path":["id"],"message":"Invalid input: expected number, received NaN"}]}}
 HTTP 400
 
 # 路由不存在
-$ curl -sS http://localhost:8090/api/rooms
+PS> curl.exe -sS http://localhost:8090/api/rooms
 {"code":"NOT_FOUND","status":404,"message":"Route GET /api/rooms does not exist"}
 HTTP 404
 
 # 再次取消已取消的预约 1：原样返回，取消时间不变
-$ curl -sS -X POST http://localhost:8090/api/reservations/1/cancel
-{"id":1,"venueId":3,"venue":{"id":3,"name":"Maple Meeting Room","location":"Library, 4F"},"bookerName":"Robotics Club","attendeeCount":8,"date":"2026-10-30","startTime":"14:00","endTime":"15:30","purpose":"Sprint planning","status":"cancelled","createdAt":"2026-10-19T08:42:37.245Z","cancelledAt":"2026-10-19T08:42:37.508Z"}
+PS> curl.exe -sS -X POST http://localhost:8090/api/reservations/1/cancel
+{"id":1,"venueId":3,"venue":{"id":3,"name":"Maple Meeting Room","location":"Library, 4F"},"bookerName":"Robotics Club","attendeeCount":8,"date":"2026-10-30","startTime":"14:00","endTime":"15:30","purpose":"Sprint planning","status":"cancelled","createdAt":"2026-10-19T13:53:37.224Z","cancelledAt":"2026-10-19T13:53:37.538Z"}
 HTTP 200
 
 # 紧接在 15:00–16:00 之后的 16:00–17:00：首尾相接不算重叠
-$ curl -sS -X POST http://localhost:8090/api/reservations -H 'content-type: application/json' -d '{"venueId":3,"bookerName":"Debate Society","attendeeCount":10,"date":"2026-10-30","startTime":"16:00","endTime":"17:00","purpose":"Mock debate"}'
-{"id":3,"venueId":3,"venue":{"id":3,"name":"Maple Meeting Room","location":"Library, 4F"},"bookerName":"Debate Society","attendeeCount":10,"date":"2026-10-30","startTime":"16:00","endTime":"17:00","purpose":"Mock debate","status":"confirmed","createdAt":"2026-10-19T08:43:06.261Z","cancelledAt":null}
+PS> curl.exe -sS -X POST http://localhost:8090/api/reservations -H 'content-type: application/json' -d '{"venueId":3,"bookerName":"Debate Society","attendeeCount":10,"date":"2026-10-30","startTime":"16:00","endTime":"17:00","purpose":"Mock debate"}'
+{"id":4,"venueId":3,"venue":{"id":3,"name":"Maple Meeting Room","location":"Library, 4F"},"bookerName":"Debate Society","attendeeCount":10,"date":"2026-10-30","startTime":"16:00","endTime":"17:00","purpose":"Mock debate","status":"confirmed","createdAt":"2026-10-19T13:53:39.014Z","cancelledAt":null}
 HTTP 201
 
 # 新增场地
-$ curl -sS -X POST http://localhost:8090/api/venues -H 'content-type: application/json' -d '{"name":"Seminar Room 210","location":"Teaching Building B, 2F","capacity":30,"openTime":"08:00","closeTime":"21:00","status":"open"}'
-{"id":7,"name":"Seminar Room 210","location":"Teaching Building B, 2F","capacity":30,"openTime":"08:00","closeTime":"21:00","status":"open","description":null,"createdAt":"2026-10-19T08:43:06.323Z"}
+PS> curl.exe -sS -X POST http://localhost:8090/api/venues -H 'content-type: application/json' -d '{"name":"Seminar Room 210","location":"Teaching Building B, 2F","capacity":30,"openTime":"08:00","closeTime":"21:00","status":"open"}'
+{"id":7,"name":"Seminar Room 210","location":"Teaching Building B, 2F","capacity":30,"openTime":"08:00","closeTime":"21:00","status":"open","description":null,"createdAt":"2026-10-19T13:53:39.143Z"}
 HTTP 201
 
 # 新增场地时字段不合法：容量为 0、关闭时间早于开放时间
-$ curl -sS -X POST http://localhost:8090/api/venues -H 'content-type: application/json' -d '{"name":"Night Lab","location":"Lab Building","capacity":0,"openTime":"21:00","closeTime":"08:00"}'
+PS> curl.exe -sS -X POST http://localhost:8090/api/venues -H 'content-type: application/json' -d '{"name":"Night Lab","location":"Lab Building","capacity":0,"openTime":"21:00","closeTime":"08:00"}'
 {"defined":false,"code":"BAD_REQUEST","status":400,"message":"Input validation failed","data":{"issues":[{"path":["capacity"],"message":"Too small: expected number to be >=1"},{"path":["closeTime"],"message":"Closing time must be later than opening time"}]}}
 HTTP 400
 ```
@@ -1388,7 +1392,7 @@ HTTP 400
 ### 7.8 数据库层验证
 
 ```text
-$ docker compose -p venue-booking-report exec database psql -U venue -d venue_booking -c "\dt"
+PS> docker compose -p venue-booking-report exec database psql -U venue -d venue_booking -c "\dt"
             List of tables
  Schema |     Name     | Type  | Owner
 --------+--------------+-------+-------
@@ -1396,7 +1400,7 @@ $ docker compose -p venue-booking-report exec database psql -U venue -d venue_bo
  public | venues       | table | venue
 (2 rows)
 
-$ docker compose -p venue-booking-report exec database psql -U venue -d venue_booking -c "SELECT id, hash, created_at FROM drizzle.__drizzle_migrations ORDER BY id"
+PS> docker compose -p venue-booking-report exec database psql -U venue -d venue_booking -c "SELECT id, hash, created_at FROM drizzle.__drizzle_migrations ORDER BY id"
  id |                               hash                               |  created_at
 ----+------------------------------------------------------------------+---------------
   1 | 223faa7a6e5b08eeed4d71f46a5f09dad6ecf1c7f86389490292a5fe17d9d907 | 1792394413185
@@ -1407,21 +1411,21 @@ $ docker compose -p venue-booking-report exec database psql -U venue -d venue_bo
 两条迁移记录分别对应 `0000_init` 和 `0001_reservations_no_overlap`。第 7.6、7.7 节之后预约表的内容：
 
 ```text
-$ docker compose -p venue-booking-report exec database psql -U venue -d venue_booking -c "SELECT id, venue_id, reservation_date, start_time, end_time, status, cancelled_at FROM reservations ORDER BY id"
+PS> docker compose -p venue-booking-report exec database psql -U venue -d venue_booking -c "SELECT id, venue_id, reservation_date, start_time, end_time, status, cancelled_at FROM reservations ORDER BY id"
  id | venue_id | reservation_date | start_time | end_time |  status   |         cancelled_at
 ----+----------+------------------+------------+----------+-----------+-------------------------------
-  1 |        3 | 2026-10-30       | 14:00:00   | 15:30:00 | cancelled | 2026-10-19 08:42:37.508432+00
-  2 |        3 | 2026-10-30       | 15:00:00   | 16:00:00 | confirmed |
-  3 |        3 | 2026-10-30       | 16:00:00   | 17:00:00 | confirmed |
+  1 |        3 | 2026-10-30       | 14:00:00   | 15:30:00 | cancelled | 2026-10-19 13:53:37.538732+00
+  3 |        3 | 2026-10-30       | 15:00:00   | 16:00:00 | confirmed |
+  4 |        3 | 2026-10-30       | 16:00:00   | 17:00:00 | confirmed |
 (3 rows)
 ```
 
-已取消的预约 1 仍保留在表中（逻辑取消），并且与已确认的预约 2 时间重叠也不违反排他约束，因为约束只作用于 `status = 'confirmed'` 的行。
+已取消的预约 1 仍保留在表中（逻辑取消），并且与已确认的预约 3 时间重叠也不违反排他约束，因为约束只作用于 `status = 'confirmed'` 的行。
 
-绕过 API，直接用 SQL 插入一条与预约 2 重叠的已确认预约，数据库拒绝写入：
+绕过 API，直接用 SQL 插入一条与预约 3 重叠的已确认预约，数据库拒绝写入：
 
 ```text
-$ docker compose -p venue-booking-report exec database psql -U venue -d venue_booking -c "INSERT INTO reservations (venue_id, booker_name, attendee_count, reservation_date, start_time, end_time, purpose) VALUES (3, 'Bypass Test', 2, '2026-10-30', '15:30', '16:30', 'Direct SQL insert')"
+PS> docker compose -p venue-booking-report exec database psql -U venue -d venue_booking -c "INSERT INTO reservations (venue_id, booker_name, attendee_count, reservation_date, start_time, end_time, purpose) VALUES (3, 'Bypass Test', 2, '2026-10-30', '15:30', '16:30', 'Direct SQL insert')"
 ERROR:  conflicting key value violates exclusion constraint "reservations_no_overlap"
 DETAIL:  Key (venue_id, tsrange(reservation_date + start_time, reservation_date + end_time, '[)'::text))=(3, ["2026-10-30 15:30:00","2026-10-30 16:30:00")) conflicts with existing key (venue_id, tsrange(reservation_date + start_time, reservation_date + end_time, '[)'::text))=(3, ["2026-10-30 15:00:00","2026-10-30 16:00:00")).
 ```
@@ -1429,24 +1433,24 @@ DETAIL:  Key (venue_id, tsrange(reservation_date + start_time, reservation_date 
 只修改状态而不写取消时间，同样被检查约束拒绝：
 
 ```text
-$ docker compose -p venue-booking-report exec database psql -U venue -d venue_booking -c "UPDATE reservations SET status = 'cancelled' WHERE id = 2"
+PS> docker compose -p venue-booking-report exec database psql -U venue -d venue_booking -c "UPDATE reservations SET status = 'cancelled' WHERE id = 3"
 ERROR:  new row for relation "reservations" violates check constraint "reservations_cancelled_at_matches_status"
-DETAIL:  Failing row contains (2, 3, Chess Club, 6, 2026-10-30, 15:00:00, 16:00:00, Weekly practice, cancelled, 2026-10-19 08:42:37.573436+00, null).
+DETAIL:  Failing row contains (3, 3, Chess Club, 6, 2026-10-30, 15:00:00, 16:00:00, Weekly practice, cancelled, 2026-10-19 13:53:37.643508+00, null).
 ```
 
 ### 7.9 数据持久化验证（实验要求 8.3）
 
-1\. 记录要验证的预约：预约 2（已确认）和预约 1（已取消）。停止前先查询一次：
+1\. 记录要验证的预约：预约 3（已确认）和预约 1（已取消）。停止前先查询一次：
 
 ```text
-$ curl -sS http://localhost:8090/api/reservations/2
-{"id":2,"venueId":3,"venue":{"id":3,"name":"Maple Meeting Room","location":"Library, 4F"},"bookerName":"Chess Club","attendeeCount":6,"date":"2026-10-30","startTime":"15:00","endTime":"16:00","purpose":"Weekly practice","status":"confirmed","createdAt":"2026-10-19T08:42:37.573Z","cancelledAt":null}
+PS> curl.exe -sS http://localhost:8090/api/reservations/3
+{"id":3,"venueId":3,"venue":{"id":3,"name":"Maple Meeting Room","location":"Library, 4F"},"bookerName":"Chess Club","attendeeCount":6,"date":"2026-10-30","startTime":"15:00","endTime":"16:00","purpose":"Weekly practice","status":"confirmed","createdAt":"2026-10-19T13:53:37.643Z","cancelledAt":null}
 ```
 
 2\. 执行 `docker compose down`：
 
 ```text
-$ docker compose -p venue-booking-report down
+PS> docker compose -p venue-booking-report down
  Container venue-booking-report-frontend-1 Stopping
  Container venue-booking-report-frontend-1 Stopped
  Container venue-booking-report-frontend-1 Removing
@@ -1459,34 +1463,36 @@ $ docker compose -p venue-booking-report down
  Container venue-booking-report-database-1 Stopped
  Container venue-booking-report-database-1 Removing
  Container venue-booking-report-database-1 Removed
- Network venue-booking-report_backend-net Removing
  Network venue-booking-report_frontend-net Removing
+ Network venue-booking-report_backend-net Removing
  Network venue-booking-report_backend-net Removed
  Network venue-booking-report_frontend-net Removed
 
-$ docker compose -p venue-booking-report ps -a
+PS> docker compose -p venue-booking-report ps -a
 NAME      IMAGE     COMMAND   SERVICE   CREATED   STATUS    PORTS
 
-$ docker volume ls
+PS> docker volume ls
 DRIVER    VOLUME NAME
 ……
 local     venue-booking-report_database-data
 local     venue-booking_database-data
 ```
 
-三个容器和两个网络都被删除（按依赖的逆序停止：先前端、再 API、最后数据库），但卷 `venue-booking-report_database-data` 仍在。列表中的 `venue-booking_database-data` 是默认实例的卷；省略的三行是本机其他无关项目的卷。
+三个容器和两个网络都被删除（按依赖的逆序停止：先前端、再 API、最后数据库），但卷 `venue-booking-report_database-data` 仍在。列表中的 `venue-booking_database-data` 是默认实例的卷；其余为本机其他项目的卷。
 
 3\. 再次启动：
 
 ```text
-$ docker compose -p venue-booking-report up -d
+PS> docker compose -p venue-booking-report up -d --wait
+ Network venue-booking-report_backend-net Creating
  Network venue-booking-report_frontend-net Creating
  Network venue-booking-report_backend-net Creating
-……
+ Network venue-booking-report_frontend-net Creating
+ Network venue-booking-report_backend-net Created
  Network venue-booking-report_backend-net Created
  Container venue-booking-report-database-1 Creating
  Network venue-booking-report_frontend-net Created
-……
+ Network venue-booking-report_frontend-net Created
  Container venue-booking-report-database-1 Created
  Container venue-booking-report-api-1 Creating
  Container venue-booking-report-api-1 Created
@@ -1502,12 +1508,18 @@ $ docker compose -p venue-booking-report up -d
  Container venue-booking-report-api-1 Healthy
  Container venue-booking-report-frontend-1 Starting
  Container venue-booking-report-frontend-1 Started
+ Container venue-booking-report-database-1 Waiting
+ Container venue-booking-report-api-1 Waiting
+ Container venue-booking-report-frontend-1 Waiting
+ Container venue-booking-report-api-1 Healthy
+ Container venue-booking-report-database-1 Healthy
+ Container venue-booking-report-frontend-1 Healthy
 
-$ docker compose -p venue-booking-report ps
-NAME                              IMAGE                          COMMAND                  SERVICE    CREATED          STATUS                                     PORTS
-venue-booking-report-api-1        venue-booking/api:1.0.0        "docker-entrypoint.s…"   api        13 seconds ago   Up 6 seconds (healthy)                     3000/tcp
-venue-booking-report-database-1   postgres:18.6-alpine3.24       "docker-entrypoint.s…"   database   13 seconds ago   Up 12 seconds (healthy)                    5432/tcp
-venue-booking-report-frontend-1   venue-booking/frontend:1.0.0   "/docker-entrypoint.…"   frontend   13 seconds ago   Up Less than a second (health: starting)   0.0.0.0:8090->8080/tcp, [::]:8090->8080/tcp
+PS> docker compose -p venue-booking-report ps
+NAME                              IMAGE                          COMMAND                  SERVICE    CREATED          STATUS                    PORTS
+venue-booking-report-api-1        venue-booking/api:1.0.0        "docker-entrypoint.s…"   api        18 seconds ago   Up 11 seconds (healthy)   3000/tcp
+venue-booking-report-database-1   postgres:18.6-alpine3.24       "docker-entrypoint.s…"   database   19 seconds ago   Up 17 seconds (healthy)   5432/tcp
+venue-booking-report-frontend-1   venue-booking/frontend:1.0.0   "/docker-entrypoint.…"   frontend   18 seconds ago   Up 5 seconds (healthy)    0.0.0.0:8090->8080/tcp, [::]:8090->8080/tcp
 ```
 
 与第 7.2 节相比，这次的输出中没有 `Volume … Created`，因为卷已经存在；`CREATED` 列则显示三个容器都是刚刚新建的。
@@ -1515,24 +1527,26 @@ venue-booking-report-frontend-1   venue-booking/frontend:1.0.0   "/docker-entryp
 4\. 再次查询之前的预约：
 
 ```text
-$ curl -sS -i http://localhost:8090/api/reservations/2
+PS> curl.exe -sS -i http://localhost:8090/api/reservations/3
 HTTP/1.1 200 OK
 Server: nginx/1.30.6
-Date: Mon, 19 Oct 2026 08:43:49 GMT
+Date: Mon, 19 Oct 2026 13:54:51 GMT
 Content-Type: application/json
 Transfer-Encoding: chunked
 Connection: keep-alive
 
-{"id":2,"venueId":3,"venue":{"id":3,"name":"Maple Meeting Room","location":"Library, 4F"},"bookerName":"Chess Club","attendeeCount":6,"date":"2026-10-30","startTime":"15:00","endTime":"16:00","purpose":"Weekly practice","status":"confirmed","createdAt":"2026-10-19T08:42:37.573Z","cancelledAt":null}
+{"id":3,"venueId":3,"venue":{"id":3,"name":"Maple Meeting Room","location":"Library, 4F"},"bookerName":"Chess Club","attendeeCount":6,"date":"2026-10-30","startTime":"15:00","endTime":"16:00","purpose":"Weekly practice","status":"confirmed","createdAt":"2026-10-19T13:53:37.643Z","cancelledAt":null}
 
-$ curl -sS http://localhost:8090/api/reservations/1
-{"id":1,"venueId":3,"venue":{"id":3,"name":"Maple Meeting Room","location":"Library, 4F"},"bookerName":"Robotics Club","attendeeCount":8,"date":"2026-10-30","startTime":"14:00","endTime":"15:30","purpose":"Sprint planning","status":"cancelled","createdAt":"2026-10-19T08:42:37.245Z","cancelledAt":"2026-10-19T08:42:37.508Z"}
+PS> curl.exe -sS http://localhost:8090/api/reservations/1
+{"id":1,"venueId":3,"venue":{"id":3,"name":"Maple Meeting Room","location":"Library, 4F"},"bookerName":"Robotics Club","attendeeCount":8,"date":"2026-10-30","startTime":"14:00","endTime":"15:30","purpose":"Sprint planning","status":"cancelled","createdAt":"2026-10-19T13:53:37.224Z","cancelledAt":"2026-10-19T13:53:37.538Z"}
 
-$ docker compose -p venue-booking-report logs api
+PS> docker compose -p venue-booking-report logs api
 api-1  | Database migrations are up to date
 api-1  | API listening on http://0.0.0.0:3000
-api-1  | GET /api/reservations/2 200 24ms
-api-1  | GET /api/reservations/1 200 5ms
+api-1  | GET /api/reservations 200 68ms
+api-1  | GET /api/reservations/1 200 11ms
+api-1  | GET /api/reservations/3 200 4ms
+api-1  | GET /api/reservations/3 200 4ms
 ```
 
 两条预约与 `down` 之前完全一致，包括已取消预约的取消时间。新 API 容器的日志里没有 `Seeded 6 demo venues`，说明它连上的是原有数据库（场地表不为空，跳过了种子数据），而不是一个新建的空库。
@@ -1540,10 +1554,10 @@ api-1  | GET /api/reservations/1 200 5ms
 5\. 查看项目的卷：
 
 ```text
-$ docker volume inspect venue-booking-report_database-data
+PS> docker volume inspect venue-booking-report_database-data
 [
     {
-        "CreatedAt": "2026-10-19T08:40:00Z",
+        "CreatedAt": "2026-10-19T13:48:55Z",
         "Driver": "local",
         "Labels": {
             "com.docker.compose.config-hash": "eae817569b16af945791bf25615f340bbf44463d29dd29cf464d51e9e8f4f55f",
@@ -1559,19 +1573,19 @@ $ docker volume inspect venue-booking-report_database-data
 ]
 ```
 
-卷创建于 08:40:00（UTC，即第 7.2 节首次启动时），标签表明它属于该 Compose 项目中的 `database-data` 卷。
+卷创建于 13:48:55（UTC，即第 7.2 节首次启动时），标签表明它属于该 Compose 项目中的 `database-data` 卷。
 
-**结论**：容器被删除重建后，预约数据仍然存在，因为 PostgreSQL 的数据保存在命名卷中，而不是容器的可写层中。此外，记录过程中这个临时项目曾被停止，Docker Desktop 也曾关闭；19:29 重新执行 `docker compose -p venue-booking-report up -d` 后，预约 1–3 依然都在，第 8 节的截图就是在此之后、基于同一个卷中的数据拍摄的。
+**结论**：容器被删除重建后，预约数据仍然存在，因为 PostgreSQL 的数据保存在命名卷中，而不是容器的可写层中。
 
 ### 7.10 网络隔离验证
 
 **前端无法访问数据库**：
 
 ```text
-$ docker compose -p venue-booking-report exec frontend getent hosts database
+PS> docker compose -p venue-booking-report exec frontend getent hosts database
 # 无输出，退出码 2（找不到该主机名）
 
-$ docker compose -p venue-booking-report exec frontend nslookup database
+PS> docker compose -p venue-booking-report exec frontend nslookup database
 Server:		127.0.0.11
 Address:	127.0.0.11:53
 
@@ -1579,50 +1593,50 @@ Non-authoritative answer:
 
 ** server can't find database: NXDOMAIN
 
-# 即使直接使用数据库在 backend-net 上的 IP 地址（172.22.0.2），也无法建立连接
-$ docker compose -p venue-booking-report exec frontend nc -zv -w 3 172.22.0.2 5432
-nc: 172.22.0.2 (172.22.0.2:5432): Operation timed out
+# 即使直接使用数据库在 backend-net 上的 IP 地址（172.21.0.2），也无法建立连接
+PS> docker compose -p venue-booking-report exec frontend nc -zv -w 3 172.21.0.2 5432
+nc: 172.21.0.2 (172.21.0.2:5432): Operation timed out
 ```
 
 **前端可以访问 API**：
 
 ```text
-$ docker compose -p venue-booking-report exec frontend getent hosts api
-172.21.0.2        api  api
+PS> docker compose -p venue-booking-report exec frontend getent hosts api
+172.22.0.2        api  api
 
-$ docker compose -p venue-booking-report exec frontend wget -qO- http://api:3000/api/health
+PS> docker compose -p venue-booking-report exec frontend wget -qO- http://api:3000/api/health
 {"status":"ok","database":"up"}
 ```
 
 **API 通过服务名连接数据库**：
 
 ```text
-$ docker compose -p venue-booking-report exec api getent hosts database
-172.22.0.2        database  database
+PS> docker compose -p venue-booking-report exec api getent hosts database
+172.21.0.2        database  database
 
-$ docker compose -p venue-booking-report exec api nc -zv -w 3 database 5432
-database (172.22.0.2:5432) open
+PS> docker compose -p venue-booking-report exec api nc -zv -w 3 database 5432
+database (172.21.0.2:5432) open
 ```
 
 **各网络中的容器**：
 
 ```text
-$ docker network inspect venue-booking-report_frontend-net --format '{{range .Containers}}{{.Name}} {{end}}'
-venue-booking-report-api-1 venue-booking-report-frontend-1
+PS> docker network inspect venue-booking-report_frontend-net --format '{{range .Containers}}{{.Name}} {{end}}'
+venue-booking-report-frontend-1 venue-booking-report-api-1
 
-$ docker network inspect venue-booking-report_backend-net --format '{{range .Containers}}{{.Name}} {{end}}'
-venue-booking-report-api-1 venue-booking-report-database-1
+PS> docker network inspect venue-booking-report_backend-net --format '{{range .Containers}}{{.Name}} {{end}}'
+venue-booking-report-database-1 venue-booking-report-api-1
 ```
 
 **数据库端口没有发布到主机**：
 
 ```text
-$ docker inspect --format '{{json .HostConfig.PortBindings}}' venue-booking-report-database-1 venue-booking-report-api-1 venue-booking-report-frontend-1
+PS> docker inspect --format '{{json .HostConfig.PortBindings}}' venue-booking-report-database-1 venue-booking-report-api-1 venue-booking-report-frontend-1
 {}
 {}
 {"8080/tcp":[{"HostIp":"","HostPort":"8090"}]}
 
-$ curl -s --connect-timeout 3 telnet://127.0.0.1:5432
+PS> curl.exe -s --connect-timeout 3 telnet://127.0.0.1:5432
 # 无输出，退出码 7（无法连接）
 ```
 
@@ -1634,11 +1648,11 @@ $ curl -s --connect-timeout 3 telnet://127.0.0.1:5432
 | api 访问 `database:5432`           | 解析成功，端口 `open`            | API 通过服务名 `database` 连接数据库                 |
 | 主机访问 5432 端口                 | 端口绑定为空，curl 退出码 7      | 数据库端口未暴露，只有前端的 8090（默认 8080）对外   |
 
-注：IP 地址由 Docker 在创建网络时分配，网络重建后可能变化（第 2.3 节的进程列表是重建之后记录的，地址与本节不同）。
+注：IP 地址由 Docker 在创建网络时分配，网络重建后可能变化。
 
 ## 8. 主要用例流程与记录
 
-截图使用 Playwright（Chromium）脚本自动操作浏览器拍摄，访问的是第 7 节的临时部署 `http://localhost:8090`，视口 1280×900，时区 `Asia/Shanghai`，浅色主题，拍摄于 2026 年 10 月 19 日 19:31–19:41。为了让看板有代表性，截图前先通过 `POST /api/reservations` 为 2026-10-30 创建了 7 条演示预约，与第 7 节中留下的数据（场地 3 的三条预约、新增的场地 Seminar Room 210）一起显示。
+截图使用 Playwright（Chromium）脚本自动操作浏览器拍摄，访问地址为 `http://localhost:8090`，视口 1280×900，时区 `Asia/Shanghai`，浅色主题。界面演示使用 2026-10-30 的示例数据：场地 3 的三条预约、场地 Seminar Room 210，以及通过 `POST /api/reservations` 创建的另外 7 条预约。下面以 Seminar Room 305 的预约 12 为例，演示创建、冲突提示、取消和查询流程。
 
 ### 用例 1：浏览预约看板（查询场地列表）
 
@@ -1692,7 +1706,7 @@ $ curl -s --connect-timeout 3 telnet://127.0.0.1:5432
 
 ### 用例 7：新增场地
 
-在看板点击 “Add a venue” 打开新增场地表单，填写名称、位置、最大容纳人数、开放与关闭时间、预约状态（开放或停用）和选填的简介。表单使用与 API 相同的校验规则，提交时调用 `POST /api/venues`。截图展示填写好的表单（未提交）；第 7.7 节记录了通过接口新增 Seminar Room 210 的 201 响应，该场地出现在用例 1 的看板中。
+在看板点击 “Add a venue” 打开新增场地表单，填写名称、位置、最大容纳人数、开放与关闭时间、预约状态（开放或停用）和选填的简介。表单使用与 API 相同的校验规则，提交时调用 `POST /api/venues`。截图展示填写好的表单（未提交）；用例 1 看板中的 Seminar Room 210 是通过该接口创建的示例场地。新增场地接口的 201 响应见第 7.7 节。
 
 ![新增场地表单](report-assets/08-new-venue.png)
 
@@ -1729,7 +1743,7 @@ $ curl -s --connect-timeout 3 telnet://127.0.0.1:5432
 | 2.3 查询场地列表、详情，新增场地                       | `GET /api/venues`、`GET /api/venues/{id}`、`POST /api/venues`                                    | 7.6、7.7，用例 1、2、7 |
 | 2.3 创建预约，查询预约列表、详情，取消预约             | `POST /api/reservations`、`GET /api/reservations`、`GET /api/reservations/{id}`、`POST /api/reservations/{id}/cancel` | 7.6，用例 3、5、6 |
 | 2.3 创建预约时校验场地、时间和输入                     | Zod 契约 + 场地存在、启用、开放时间、未过去、容量等业务规则                                      | 7.7，用例 4           |
-| 2.3 拒绝同一场地同一时段的冲突预约                     | 事务内锁定场地行后检查重叠，数据库排他约束兜底，返回 409                                        | 7.6、7.8，用例 4      |
+| 2.3 拒绝同一场地同一时段的冲突预约                     | 事务内锁定场地行，数据库排他约束阻止重叠写入，API 将 `23P01` 转为 409                            | 3.5、7.6、7.8，用例 4 |
 | 3 JSON、明确的 404/409 等错误、不返回堆栈              | 统一的错误 JSON 和错误码                                                                         | 4.4、7.7              |
 | 3 数据写入关系数据库，连接信息来自环境变量             | PostgreSQL；`DATABASE_URL` 由 Compose 注入                                                       | 5.2、7.9              |
 | 4 前端七项交互，通过 HTTP 调用 API，不直连数据库       | React 前端经同源 `/api` 反向代理调用 API                                                        | 8、7.10               |
@@ -1744,25 +1758,51 @@ $ curl -s --connect-timeout 3 telnet://127.0.0.1:5432
 | 7.3 配置要求                                           | 提交 `.env.example`，`.env` 被 Git 忽略                                                          | 6.3                   |
 | 8.1 / 8.2 / 8.3 验收                                   | 全部按要求执行                                                                                   | 7.6 / 7.2–7.5 / 7.9   |
 
-除手工验证外，仓库还包含自动化测试。本次在本机运行的结果（2026-10-19 19:37）：
+除手工验证外，仓库还包含自动化测试。本次在本机运行的结果（2026-10-19 21:48–21:52）：
 
 ```text
-$ bun run test
+PS> bun run test
 ……
  Test Files  6 passed (6)
       Tests  96 passed (96)
-   Start at  19:37:03
-   Duration  35.72s (import 79%, tests 17%, transform 3%, worker 1%)
+   Start at  21:48:44
+   Duration  12.82s (tests 51%, import 45%, transform 4%)
 
-$ E2E_BASE_URL=http://localhost:8090 bun run test:e2e
+PS> $env:E2E_BASE_URL = 'http://localhost:8090'
+PS> bun run test:e2e
 ……
 Running 12 tests using 1 worker
 ……
-  12 passed (12.0s)
+  12 passed (11.8s)
 ```
 
 - `bun run test` 包含单元测试（校验规则、时间工具、配置解析）和集成测试（自动启动一个临时 PostgreSQL 容器，覆盖全部接口、冲突与并发、数据库约束和错误处理）；
 - `bun run test:e2e` 用 Playwright 在浏览器中走完预约、冲突、取消、重新预约和语言切换流程，经 nginx 代理检查接口，并用 axe 检查无障碍问题。
+
+两个并发用例均通过：20 个请求同时预约同一时段，恰好 1 个返回 201、19 个返回 409；混合竞争时段的请求也只返回 201 或 409，已确认的预约之间没有重叠。
+
+Lighthouse 按 `lighthouserc.json` 的桌面配置，对本次部署的首页、场地详情页和预约记录页各检测一次，全部满足配置中的断言：
+
+| 页面 | 性能 | 无障碍 | 最佳实践 | SEO |
+| ---- | ---- | ------ | -------- | --- |
+| `/` | 99 | 100 | 100 | 100 |
+| `/venues/1` | 99 | 100 | 100 | 100 |
+| `/reservations` | 97 | 100 | 100 | 100 |
+
+此外，`bun run typecheck`、`bun run lint`、`bun run format:check`、`bun run knip`、`bun run build` 和第 7.2 节的 Docker 构建、健康检查均通过。API 和前端本机构建输出为：
+
+```text
+PS> bun run build
+……
+@venue/api build: Bundled 290 modules in 88ms
+@venue/api build:
+@venue/api build:   server.js  0.67 MB  (entry point)
+@venue/api build:
+@venue/api build: Exited with code 0
+……
+@venue/web build: ✓ built in 1.03s
+@venue/web build: Exited with code 0
+```
 
 ## 10. 小组成员与分工
 
@@ -1782,7 +1822,7 @@ Running 12 tests using 1 worker
 
 以下技术点在代码或配置中都有对应的处理和注释，可作为素材，请按小组的实际经历取舍和改写：
 
-- 并发请求可能重复预约同一时段：事务内 `SELECT … FOR UPDATE` 锁定场地行，加上数据库排他约束（`apps/api/src/routers/reservations.ts`、`apps/api/drizzle/0001_reservations_no_overlap.sql`）；
+- 并发请求可能重复预约同一时段：事务内锁定场地行，使同一场地的创建请求依次执行，数据库排他约束阻止重叠写入，API 将 `23P01` 转为 409（`apps/api/src/routers/reservations.ts`、`apps/api/drizzle/0001_reservations_no_overlap.sql`，见第 3.5、9 节）；
 - `api` 容器重建后 IP 改变，nginx 仍连接旧地址：使用 `resolver` 和变量形式的 `proxy_pass`，按请求解析主机名（`deploy/web/default.conf.template`）；
 - PostgreSQL 18 镜像的数据目录改为 `/var/lib/postgresql/18/docker`：卷挂载到 `/var/lib/postgresql`（`compose.yaml` 中的注释）；
 - 容器时钟为 UTC，判断“预约已过去”需要使用业务时区：`APP_TIME_ZONE`（`apps/api/src/lib/time.ts`）；

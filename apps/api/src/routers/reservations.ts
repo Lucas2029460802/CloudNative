@@ -3,6 +3,7 @@ import {
   and,
   asc,
   eq,
+  getTableColumns,
   gt,
   gte,
   ilike,
@@ -11,6 +12,7 @@ import {
   sql,
   type SQL,
 } from "drizzle-orm"
+import postgres from "postgres"
 
 import type { Database } from "../db/client"
 import { reservations, venues } from "../db/schema"
@@ -20,24 +22,12 @@ import { os } from "./base"
 /** SQLSTATE raised when the `reservations_no_overlap` exclusion constraint is violated. */
 const EXCLUSION_VIOLATION = "23P01"
 
-const reservationColumns = {
-  id: reservations.id,
-  venueId: reservations.venueId,
-  venue: { id: venues.id, name: venues.name, location: venues.location },
-  bookerName: reservations.bookerName,
-  attendeeCount: reservations.attendeeCount,
-  date: reservations.date,
-  startTime: reservations.startTime,
-  endTime: reservations.endTime,
-  purpose: reservations.purpose,
-  status: reservations.status,
-  createdAt: reservations.createdAt,
-  cancelledAt: reservations.cancelledAt,
-}
-
 function selectReservations(db: Database) {
   return db
-    .select(reservationColumns)
+    .select({
+      ...getTableColumns(reservations),
+      venue: { id: venues.id, name: venues.name, location: venues.location },
+    })
     .from(reservations)
     .innerJoin(venues, eq(reservations.venueId, venues.id))
 }
@@ -61,7 +51,7 @@ async function findReservation(db: Database, id: number) {
 
 /** Confirmed reservations of the venue whose half-open [start, end) range overlaps the request. */
 async function findConflicts(
-  db: Pick<Database, "select">,
+  db: Database,
   request: { venueId: number; date: string; startTime: string; endTime: string }
 ) {
   const rows = await db
@@ -86,15 +76,6 @@ async function findConflicts(
     startTime: toHourMinute(row.startTime),
     endTime: toHourMinute(row.endTime),
   }))
-}
-
-/** Drizzle wraps driver errors, so look through the `cause` chain for a SQLSTATE code. */
-function postgresErrorCode(error: unknown): string | undefined {
-  for (let current = error; current instanceof Error; current = current.cause) {
-    if ("code" in current && typeof current.code === "string")
-      return current.code
-  }
-  return undefined
 }
 
 function escapeLikePattern(value: string) {
@@ -134,20 +115,10 @@ export const reservationsRouter = {
   }),
 
   create: os.reservations.create.handler(async ({ input, context, errors }) => {
-    const conflictError = (
-      conflicts: Awaited<ReturnType<typeof findConflicts>>
-    ) =>
-      errors.RESERVATION_CONFLICT({
-        message: `The requested time overlaps ${conflicts.length} existing reservation(s)`,
-        data: { conflicts },
-      })
-    const now = wallClock(context.now(), context.timeZone)
-
-    let id: number
+    const { db } = context
     try {
-      id = await context.db.transaction(async (tx) => {
-        // Locking the venue row serializes concurrent bookings of the same venue, so the
-        // overlap check below always sees reservations committed by competing requests.
+      return await db.transaction(async (tx) => {
+        // Serialize bookings per venue before exclusion checks can deadlock.
         const [venue] = await tx
           .select()
           .from(venues)
@@ -156,6 +127,7 @@ export const reservationsRouter = {
         if (!venue) throw errors.VENUE_NOT_FOUND()
         if (venue.status !== "open") throw errors.VENUE_DISABLED()
 
+        const now = wallClock(context.now(), context.timeZone)
         if (
           input.date < now.date ||
           (input.date === now.date && input.startTime <= now.time)
@@ -179,24 +151,27 @@ export const reservationsRouter = {
           })
         }
 
-        const conflicts = await findConflicts(tx, input)
-        if (conflicts.length > 0) throw conflictError(conflicts)
-
         const [created] = await tx
           .insert(reservations)
           .values(input)
-          .returning({ id: reservations.id })
-        return created!.id
+          .returning()
+        const { id, name, location } = venue
+        return toReservation({ ...created!, venue: { id, name, location } })
       })
     } catch (error) {
-      // Safety net: the exclusion constraint rejects any overlap the check above missed.
-      if (postgresErrorCode(error) === EXCLUSION_VIOLATION) {
-        throw conflictError(await findConflicts(context.db, input))
+      if (
+        !(error instanceof Error) ||
+        !(error.cause instanceof postgres.PostgresError) ||
+        error.cause.code !== EXCLUSION_VIOLATION
+      ) {
+        throw error
       }
-      throw error
+      const conflicts = await findConflicts(db, input)
+      throw errors.RESERVATION_CONFLICT({
+        message: `The requested time overlaps ${conflicts.length} existing reservation(s)`,
+        data: { conflicts },
+      })
     }
-
-    return (await findReservation(context.db, id))!
   }),
 
   cancel: os.reservations.cancel.handler(async ({ input, context, errors }) => {

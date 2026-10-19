@@ -1,3 +1,4 @@
+import { fileURLToPath } from "node:url"
 import { serve } from "@hono/node-server"
 
 import { createApp } from "./app"
@@ -6,34 +7,30 @@ import { createDatabase, waitForDatabase } from "./db/client"
 import { prepareDatabase } from "./db/prepare"
 
 const config = loadConfig()
-const database = createDatabase(config.DATABASE_URL, {
-  max: config.DATABASE_POOL_MAX,
-})
+const db = createDatabase(config.DATABASE_URL)
 
-await waitForDatabase(database.client)
-await prepareDatabase(database, {
-  migrationsFolder: config.MIGRATIONS_DIR,
-  migrate: config.DB_MIGRATE_ON_START,
+await waitForDatabase(db)
+await prepareDatabase(db, {
+  // drizzle/ sits next to src/ in the repository and next to dist/ in the image.
+  migrationsFolder: fileURLToPath(new URL("../drizzle", import.meta.url)),
   seed: config.DB_SEED_ON_START,
 })
 
 const app = createApp({
-  ...database,
+  db,
   timeZone: config.APP_TIME_ZONE,
   logRequests: true,
 })
 
 const server = serve(
-  { fetch: app.fetch, hostname: config.HOST, port: config.PORT },
+  { fetch: app.fetch, hostname: "0.0.0.0", port: config.PORT },
   (info) => console.log(`API listening on http://${info.address}:${info.port}`)
 )
 
 function shutdown(signal: NodeJS.Signals) {
   console.log(`${signal} received, shutting down`)
-  // Force exit if open connections keep the server from closing in time.
-  setTimeout(() => process.exit(1), 10_000).unref()
   server.close(async () => {
-    await database.client.end({ timeout: 5 })
+    await db.$client.end({ timeout: 5 })
     process.exit(0)
   })
 }

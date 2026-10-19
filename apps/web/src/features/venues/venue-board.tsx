@@ -40,13 +40,7 @@ export function VenueBoard({
         Math.max(...venues.map((venue) => toMinutes(venue.closeTime))) / 60
       ) * 60,
   }
-  const bookingsByVenue = new Map<number, Reservation[]>()
-  for (const booking of bookings) {
-    bookingsByVenue.set(booking.venueId, [
-      ...(bookingsByVenue.get(booking.venueId) ?? []),
-      booking,
-    ])
-  }
+  const bookingsByVenue = Map.groupBy(bookings, (booking) => booking.venueId)
   const ordered = venues.toSorted(
     (a, b) => Number(a.status === "disabled") - Number(b.status === "disabled")
   )
@@ -96,7 +90,7 @@ function VenueRow({
   today: string
   now?: number
 }) {
-  const { t, i18n } = useTranslation()
+  const { t } = useTranslation()
   const disabled = venue.status === "disabled"
   const free = freeMinutes(venue.openTime, venue.closeTime, bookings, now)
   const summary = disabled
@@ -105,7 +99,7 @@ function VenueRow({
       ? t("board.dayOver")
       : free === 0
         ? t("board.fullyBooked")
-        : t("board.free", { duration: formatDuration(free, t) })
+        : t("board.free", { duration: formatDuration(free) })
 
   return (
     <li>
@@ -134,7 +128,7 @@ function VenueRow({
             now={now}
             label={t("board.timelineLabel", {
               venue: venue.name,
-              date: formatDate(date, i18n.resolvedLanguage ?? "en", "long"),
+              date: formatDate(date, "long"),
               hours: t("common.hours", {
                 open: venue.openTime,
                 close: venue.closeTime,

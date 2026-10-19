@@ -19,17 +19,15 @@
     "test:unit": "vitest run --project unit",
     "test:integration": "vitest run --project integration",
     "test:e2e": "playwright test",
-    "db:generate": "bun run --filter @venue/api db:generate",
-    "db:migrate": "bun run --filter @venue/api db:migrate",
-    "db:seed": "bun run --filter @venue/api db:seed",
-    "test:lighthouse": "lhci autorun"
+    "test:lighthouse": "lhci autorun",
+    "db:generate": "bun run --filter @venue/api db:generate"
   },
   "devDependencies": {
     "@axe-core/playwright": "^4.14.0",
     "@lhci/cli": "^0.15.1",
     "@playwright/cli": "^0.1.22",
     "@playwright/test": "^1.64.1",
-    "@types/bun": "latest",
+    "@types/node": "^26.6.5",
     "knip": "^6.42.0",
     "oxfmt": "^0.73.0",
     "oxlint": "^1.88.0",

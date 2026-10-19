@@ -1,29 +1,22 @@
+import { sql } from "drizzle-orm"
 import { drizzle } from "drizzle-orm/postgres-js"
 import postgres from "postgres"
 
-import * as schema from "./schema"
-
-export function createDatabase(url: string, options: { max?: number } = {}) {
-  const client = postgres(url, {
-    max: options.max ?? 10,
-    connect_timeout: 10,
-    // Silence NOTICE messages such as "relation already exists, skipping".
-    onnotice: () => {},
-  })
-  return { client, db: drizzle({ client, schema }) }
+export function createDatabase(url: string) {
+  // Silence NOTICE messages such as "schema already exists, skipping".
+  return drizzle(postgres(url, { onnotice: () => {} }))
 }
 
-export type DatabaseClient = ReturnType<typeof createDatabase>["client"]
-export type Database = ReturnType<typeof createDatabase>["db"]
+export type Database = ReturnType<typeof createDatabase>
 
 /** Retries `select 1` so the API survives starting before PostgreSQL accepts connections. */
 export async function waitForDatabase(
-  client: DatabaseClient,
+  db: Database,
   { attempts = 30, delayMs = 1000 } = {}
 ) {
   for (let attempt = 1; ; attempt++) {
     try {
-      await client`select 1`
+      await db.execute(sql`select 1`)
       return
     } catch (error) {
       if (attempt >= attempts) throw error

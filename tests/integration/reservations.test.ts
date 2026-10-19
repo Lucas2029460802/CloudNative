@@ -1,9 +1,9 @@
 import { describe, expect, it } from "vitest"
 
 import { reservations } from "../../apps/api/src/db/schema"
-import { reservationInput, TODAY, TOMORROW, useTestApi } from "./helpers"
+import { reservationInput, TODAY, TOMORROW, setupTestApi } from "./helpers"
 
-const api = useTestApi()
+const api = setupTestApi()
 
 function book(
   overrides: Record<string, unknown> = {},
@@ -235,7 +235,7 @@ describe("concurrent reservations", () => {
 })
 
 async function insertRaw(values: Partial<typeof reservations.$inferInsert>) {
-  await api.database.db.insert(reservations).values({
+  await api.db.insert(reservations).values({
     venueId: api.venueIds.hall,
     bookerName: "Direct SQL",
     attendeeCount: 1,

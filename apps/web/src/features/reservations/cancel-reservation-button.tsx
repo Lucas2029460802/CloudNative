@@ -29,18 +29,14 @@ export function CancelReservationButton({
   reservation: Reservation
   size?: "default" | "sm"
 }) {
-  const { t, i18n } = useTranslation()
+  const { t } = useTranslation()
   const queryClient = useQueryClient()
   const [open, setOpen] = useState(false)
   const time = t("common.timeRange", {
     start: reservation.startTime,
     end: reservation.endTime,
   })
-  const date = formatDate(
-    reservation.date,
-    i18n.resolvedLanguage ?? "en",
-    "medium"
-  )
+  const date = formatDate(reservation.date)
 
   const cancel = useMutation(
     orpc.reservations.cancel.mutationOptions({

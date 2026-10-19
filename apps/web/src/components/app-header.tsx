@@ -3,46 +3,26 @@ import { LanguagesIcon, MoonIcon, SunIcon } from "lucide-react"
 import type { ReactNode } from "react"
 import { useTranslation } from "react-i18next"
 
-import { useTheme } from "@/components/theme-provider"
 import { Button } from "@/components/ui/button"
-import { currentLanguage } from "@/lib/i18n"
+import { toggleTheme } from "@/lib/theme"
 import { cn } from "@/lib/utils"
 
-function BrandMark({ className }: { className?: string }) {
+function BrandMark() {
   return (
-    <svg
-      viewBox="0 0 32 32"
-      aria-hidden="true"
-      className={cn("size-8", className)}
-    >
+    <svg viewBox="0 0 32 32" aria-hidden="true" className="size-8">
       <rect width="32" height="32" rx="7" fill="currentColor" opacity=".12" />
-      <rect
-        x="6"
-        y="9"
-        width="20"
-        height="3"
-        rx="1.5"
-        fill="currentColor"
-        opacity=".4"
-      />
-      <rect
-        x="6"
-        y="15"
-        width="20"
-        height="3"
-        rx="1.5"
-        fill="currentColor"
-        opacity=".4"
-      />
-      <rect
-        x="6"
-        y="21"
-        width="20"
-        height="3"
-        rx="1.5"
-        fill="currentColor"
-        opacity=".4"
-      />
+      {[9, 15, 21].map((y) => (
+        <rect
+          key={y}
+          x="6"
+          y={y}
+          width="20"
+          height="3"
+          rx="1.5"
+          fill="currentColor"
+          opacity=".4"
+        />
+      ))}
       <rect x="11" y="13.5" width="10" height="6" rx="2" fill="var(--signal)" />
     </svg>
   )
@@ -75,7 +55,7 @@ function NavLink({
 
 function LanguageToggle() {
   const { t, i18n } = useTranslation()
-  const next = currentLanguage() === "en" ? "zh-CN" : "en"
+  const next = i18n.resolvedLanguage === "zh-CN" ? "en" : "zh-CN"
   return (
     <Button
       variant="ghost"
@@ -92,17 +72,12 @@ function LanguageToggle() {
 
 function ThemeToggle() {
   const { t } = useTranslation()
-  const { setTheme } = useTheme()
   return (
     <Button
       variant="ghost"
       size="icon"
       aria-label={t("app.theme.toggle")}
-      onClick={() =>
-        setTheme(
-          document.documentElement.classList.contains("dark") ? "light" : "dark"
-        )
-      }
+      onClick={toggleTheme}
     >
       <MoonIcon className="dark:hidden" />
       <SunIcon className="hidden dark:block" />

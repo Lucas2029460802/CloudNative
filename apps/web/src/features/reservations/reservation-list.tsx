@@ -1,8 +1,9 @@
 import { Link } from "@tanstack/react-router"
 import type { Reservation } from "@venue/contracts"
-import { CalendarXIcon } from "lucide-react"
+import { CalendarXIcon, CheckIcon, XIcon } from "lucide-react"
 import { useTranslation } from "react-i18next"
 
+import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import {
   Empty,
@@ -14,7 +15,6 @@ import {
 } from "@/components/ui/empty"
 import { Skeleton } from "@/components/ui/skeleton"
 import { CancelReservationButton } from "@/features/reservations/cancel-reservation-button"
-import { ReservationStatusBadge } from "@/features/reservations/reservation-status-badge"
 import { formatDate, formatDuration } from "@/lib/format"
 import { durationMinutes } from "@/lib/time"
 import { cn } from "@/lib/utils"
@@ -24,8 +24,7 @@ export function ReservationList({
 }: {
   reservations: Reservation[]
 }) {
-  const { t, i18n } = useTranslation()
-  const language = i18n.resolvedLanguage ?? "en"
+  const { t } = useTranslation()
 
   if (reservations.length === 0) {
     return (
@@ -46,27 +45,22 @@ export function ReservationList({
     )
   }
 
-  // The API returns reservations sorted by date and time; group consecutive days.
-  const days: [string, Reservation[]][] = []
-  for (const reservation of reservations) {
-    const last = days.at(-1)
-    if (last?.[0] === reservation.date) last[1].push(reservation)
-    else days.push([reservation.date, [reservation]])
-  }
+  // The API returns reservations sorted by date and time, so days stay in order.
+  const days = Map.groupBy(reservations, (reservation) => reservation.date)
 
   return (
     <div className="flex flex-col gap-8">
       <p aria-live="polite" className="text-sm text-muted-foreground">
         {t("reservations.count", { count: reservations.length })}
       </p>
-      {days.map(([date, items]) => (
+      {[...days].map(([date, items]) => (
         <section
           key={date}
           aria-labelledby={`day-${date}`}
           className="flex flex-col gap-3"
         >
           <h2 id={`day-${date}`} className="font-display text-xl">
-            {formatDate(date, language, "long")}
+            {formatDate(date, "long")}
           </h2>
           <ul className="divide-y overflow-hidden rounded-xl bg-card ring-1 ring-border">
             {items.map((reservation) => (
@@ -97,7 +91,7 @@ function ReservationRow({ reservation }: { reservation: Reservation }) {
           })}
         </p>
         <p className="text-xs text-muted-foreground">
-          {formatDuration(durationMinutes(reservation), t)}
+          {formatDuration(durationMinutes(reservation))}
         </p>
       </div>
       <div className="flex min-w-0 flex-1 flex-col gap-1">
@@ -110,7 +104,14 @@ function ReservationRow({ reservation }: { reservation: Reservation }) {
           >
             {reservation.venue.name}
           </Link>
-          <ReservationStatusBadge status={reservation.status} />
+          <Badge variant={cancelled ? "outline" : "default"}>
+            {cancelled ? (
+              <XIcon data-icon="inline-start" />
+            ) : (
+              <CheckIcon data-icon="inline-start" />
+            )}
+            {t(`status.${reservation.status}`)}
+          </Badge>
         </div>
         <p className="text-sm">
           {reservation.bookerName}

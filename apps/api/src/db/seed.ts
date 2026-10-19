@@ -1,5 +1,3 @@
-import { count } from "drizzle-orm"
-
 import type { Database } from "./client"
 import { venues } from "./schema"
 
@@ -64,9 +62,8 @@ const demoVenues: (typeof venues.$inferInsert)[] = [
  * Inserts the demo venues into an empty `venues` table. Running it again (for example on
  * every container start) is a no-op once any venue exists, so user data is never touched.
  */
-export async function seedDemoVenues(db: Database): Promise<number> {
-  const [row] = await db.select({ total: count() }).from(venues)
-  if ((row?.total ?? 0) > 0) return 0
+export async function seedDemoVenues(db: Database) {
+  if ((await db.$count(venues)) > 0) return 0
   await db.insert(venues).values(demoVenues)
   return demoVenues.length
 }

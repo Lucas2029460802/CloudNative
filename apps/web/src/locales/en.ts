@@ -36,7 +36,6 @@ export const en = {
     closeToast: "Dismiss notification",
   },
   status: {
-    open: "Open",
     disabled: "Disabled",
     confirmed: "Confirmed",
     cancelled: "Cancelled",
@@ -61,8 +60,6 @@ export const en = {
   },
   venue: {
     back: "All venues",
-    capacity: "Capacity",
-    openingHours: "Opening hours",
     chooseTime: "Choose a time",
     chooseTimeHint: "Click a start slot, then the slot you want to end with.",
     chooseEndHint:
@@ -72,7 +69,6 @@ export const en = {
     slotBooked: "booked",
     slotPast: "already passed",
     slotSelected: "selected",
-    booked: "Booked",
     yourSelection: "Your selection",
     disabledTitle: "This venue is not accepting bookings",
     disabledBody:
@@ -104,7 +100,6 @@ export const en = {
       startTime: "Choose a start and an end time.",
       endTime: "The end time must be after the start time.",
       purpose: "Describe the purpose in up to 500 characters.",
-      date: "Choose a valid date.",
     },
   },
   reservation: {
@@ -113,8 +108,6 @@ export const en = {
     confirmedBody:
       "Keep reservation number {{id}} to look up or cancel this booking later.",
     venue: "Venue",
-    date: "Date",
-    time: "Time",
     bookedBy: "Booked by",
     attendees: "Attendees",
     purpose: "Purpose",
@@ -186,7 +179,7 @@ export const en = {
     RESERVATION_CONFLICT:
       "That time overlaps a confirmed booking ({{slots}}). Choose another time.",
     OUTSIDE_OPENING_HOURS:
-      "The venue is open {{open}}–{{close}}. Choose a time within those hours.",
+      "The venue is open {{openTime}}–{{closeTime}}. Choose a time within those hours.",
     RESERVATION_IN_PAST:
       "That start time has already passed. Choose a later time.",
     CAPACITY_EXCEEDED:

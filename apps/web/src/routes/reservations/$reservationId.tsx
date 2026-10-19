@@ -1,5 +1,6 @@
-import { useQuery } from "@tanstack/react-query"
+import { skipToken, useQuery } from "@tanstack/react-query"
 import { createFileRoute, Link } from "@tanstack/react-router"
+import { IdSchema } from "@venue/contracts"
 import { ArrowLeftIcon, CircleCheckIcon } from "lucide-react"
 import { useTranslation } from "react-i18next"
 import { z } from "zod"
@@ -23,16 +24,16 @@ function ReservationPage() {
   const { t } = useTranslation()
   const { reservationId } = Route.useParams()
   const { created } = Route.useSearch()
-  const id = Number(reservationId)
-  const validId = Number.isInteger(id) && id > 0 && id <= 2_147_483_647
+  const id = IdSchema.safeParse(reservationId).data
 
-  const reservation = useQuery({
-    ...orpc.reservations.get.queryOptions({ input: { id } }),
-    enabled: validId,
-  })
+  const reservation = useQuery(
+    orpc.reservations.get.queryOptions({
+      input: id === undefined ? skipToken : { id },
+    })
+  )
   useDocumentTitle(t("reservation.number", { id: reservationId }))
 
-  if (!validId || isNotFound(reservation.error)) {
+  if (id === undefined || isNotFound(reservation.error)) {
     return (
       <NotFoundState
         title={t("reservation.notFoundTitle")}
