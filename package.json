@@ -1,0 +1,12 @@
+{
+  "devDependencies": {
+    "@types/bun": "latest"
+  },
+  "name": "venue-booking",
+  "type": "module",
+  "private": true,
+  "workspaces": {
+    "0": "apps/*",
+    "1": "packages/*"
+  }
+}
