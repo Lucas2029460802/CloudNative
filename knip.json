@@ -1,6 +1,6 @@
 {
   "$schema": "https://unpkg.com/knip@6/schema.json",
-  "ignore": [".agents/**", "apps/web/src/components/ui/**"],
+  "ignore": [".agents/**", ".claude/**", "apps/web/src/components/ui/**"],
   "ignoreDependencies": ["@playwright/cli"],
   "workspaces": {
     ".": {
