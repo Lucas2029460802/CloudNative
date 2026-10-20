@@ -40,7 +40,7 @@
                        database (PostgreSQL :5432)  场地与预约数据（命名卷）
 ```
 
-三个容器与两个网络的关系如下。`frontend-net` 连接前端和 API，`backend-net` 连接 API 和数据库，只有 API 同时接入两个网络：
+`frontend-net` 连接前端和 API，`backend-net` 连接 API 和数据库，只有 API 同时接入两个网络：
 
 ```text
 主机 0.0.0.0:8080
@@ -203,7 +203,7 @@ venues（场地）                        reservations（预约）
 | `created_at`       | 创建时间     | `timestamptz`        | 非空，默认 `now()`                                                   |
 | `cancelled_at`     | 取消时间     | `timestamptz`        | 可空；`CHECK ((status = 'cancelled') = (cancelled_at IS NOT NULL))` |
 
-两个状态列使用 PostgreSQL 枚举类型：`venue_status` 取值 `open`、`disabled`；`reservation_status` 取值 `confirmed`、`cancelled`。`timestamptz` 即 `timestamp with time zone`。此外还有：
+两个状态列使用 PostgreSQL 枚举类型：`venue_status` 取值 `open`、`disabled`；`reservation_status` 取值 `confirmed`、`cancelled`。`timestamptz` 即 `timestamp with time zone`。该表还有一个索引和一个排他约束：
 
 - 索引 `reservations_venue_date_idx (venue_id, reservation_date)`：用于按场地和日期查询，例如场地页面的当天时间表和创建预约时的冲突检查；
 - 排他约束 `reservations_no_overlap`：禁止同一场地已确认的预约时间重叠（第 3.4 节）。
@@ -276,7 +276,7 @@ ALTER TABLE "reservations" ADD CONSTRAINT "reservations_no_overlap" EXCLUDE USIN
 ```
 
 - 排他约束要求：任意两行不能同时满足“`venue_id` 相等（`=`）”和“时间区间重叠（`&&`）”，否则写入失败。
-- `reservation_date + start_time` 把日期和时间相加得到时间戳，`tsrange(…, '[)')` 构造**左闭右开**区间，因此 09:00–10:00 与 10:00–11:00 首尾相接、不算重叠。
+- `reservation_date + start_time` 把日期和时间相加得到时间戳，`tsrange(…, '[)')` 构造**左闭右开**区间，因此 09:00 至 10:00 与 10:00 至 11:00 首尾相接、不算重叠。
 - `WHERE (status = 'confirmed')` 使约束只作用于已确认的预约：已取消的预约不再占用时段。
 - GiST 索引本身不支持整数列的 `=` 比较，`btree_gist` 扩展提供了这一运算符类。
 - 违反约束时 PostgreSQL 返回 SQLSTATE `23P01`，API 把它转换为 409 `RESERVATION_CONFLICT`。
@@ -286,16 +286,16 @@ ALTER TABLE "reservations" ADD CONSTRAINT "reservations_no_overlap" EXCLUDE USIN
 
 冲突由数据库判定，API 把约束错误转换为业务响应（`apps/api/src/routers/reservations.ts`）：
 
-1. **API 层**：创建预约时开启事务，用 `SELECT … FROM venues WHERE id = ? FOR UPDATE` 锁定场地行，校验状态、时间和人数后插入预约。同一场地的创建请求因此依次执行，不同场地之间互不阻塞。若插入违反排他约束，事务回滚后 API 捕获 `23P01`，再查询与请求时段重叠的已确认预约，返回 409 和冲突时段列表。
-2. **数据库层**：排他约束原子地检查重叠。同一场地的并发请求也不能写入重叠预约，即使绕过 API 直接写数据库也一样（第 7.8 节演示）。
+1. API 层：创建预约时开启事务，用 `SELECT … FROM venues WHERE id = ? FOR UPDATE` 锁定场地行，校验状态、时间和人数后插入预约。同一场地的创建请求因此依次执行，不同场地之间互不阻塞。若插入违反排他约束，事务回滚后 API 捕获 `23P01`，再查询与请求时段重叠的已确认预约，返回 409 和冲突时段列表。
+2. 数据库层：排他约束原子地检查重叠。同一场地的并发请求也不能写入重叠预约，即使绕过 API 直接写数据库也一样（第 7.8 节演示）。
 
 ### 3.6 取消方式：逻辑取消
 
-本系统采用**逻辑取消**，不物理删除记录：
+本系统采用逻辑取消，不物理删除记录：
 
 - `POST /api/reservations/{id}/cancel` 执行 `UPDATE reservations SET status = 'cancelled', cancelled_at = now() WHERE id = ? AND status = 'confirmed'`，然后返回该预约；
 - 记录保留下来：预约编号是用户的凭证，取消后仍能在确认单和预约记录中查到，并显示取消时间；
-- 已取消的预约不参与重叠检查，也不受排他约束限制，该时段立即可以被重新预约（第 7.6 节第 7 步）；
+- 已取消的预约不参与重叠检查，也不受排他约束限制，该时段可以立即重新预约（第 7.6 节第 7 步）；
 - 检查约束 `reservations_cancelled_at_matches_status` 保证 `status` 与 `cancelled_at` 始终一致（第 7.8 节演示）；
 - 对已取消的预约再次取消时，`UPDATE` 不匹配任何行，接口原样返回 200，即取消操作是幂等的（第 7.7 节）。
 
@@ -377,7 +377,7 @@ API 每次启动都会检查迁移；环境变量 `DB_SEED_ON_START=false` 可�
 }
 ```
 
-规则：`name` 1–100 个字符，`location` 1–200 个字符，`capacity` 为 1–10000 的整数，时间为 24 小时制 `HH:mm` 且关闭时间晚于开放时间，`status` 默认 `open`，`description` 选填、不超过 500 个字符。
+规则：`name` 1 至 100 个字符，`location` 1 至 200 个字符，`capacity` 为 1 至 10000 的整数，时间为 24 小时制 `HH:mm` 且关闭时间晚于开放时间，`status` 默认 `open`，`description` 选填、不超过 500 个字符。
 
 创建预约（`POST /api/reservations`，日期格式为 `YYYY-MM-DD`）：
 
@@ -393,7 +393,7 @@ API 每次启动都会检查迁移；环境变量 `DB_SEED_ON_START=false` 可�
 }
 ```
 
-规则：`bookerName` 1–100 个字符，`attendeeCount` 为 1–10000 的整数，日期必须真实存在（2026-02-30 会被拒绝），结束时间晚于开始时间，`purpose` 1–500 个字符。
+规则：`bookerName` 1 至 100 个字符，`attendeeCount` 为 1 至 10000 的整数，日期必须真实存在（2026-02-30 会被拒绝），结束时间晚于开始时间，`purpose` 1 至 500 个字符。
 
 预约的响应中会附带场地的编号、名称和位置，前端无需再单独查询场地：
 
@@ -491,7 +491,7 @@ blob-report
 - 本机的 `node_modules`、构建产物 `dist` 不进入构建上下文，依赖和产物都在镜像内按锁文件重新生成，保证构建可复现；
 - `.env` 及其变体被排除，密码不会被 `COPY` 进镜像；`.env.example` 是示例，允许保留；
 - Git 数据、编辑器与工具配置、测试、文档和报告都与镜像无关，一并排除；
-- 此外，两个 Dockerfile 都只 `COPY` 所需的目录，而不是 `COPY . .`。
+- 两个 Dockerfile 也都只 `COPY` 所需的目录，而不是 `COPY . .`。
 
 ### 5.2 后端镜像：`deploy/api/Dockerfile`
 
@@ -585,7 +585,7 @@ postgres://venue:****@database:5432/venue_booking
 # 密码已用 sed 遮盖；主机名为 Compose 服务名 database
 ```
 
-可以看到：镜像以 `node` 用户运行；镜像自身的环境变量中没有 `DATABASE_URL` 或密码；`/app` 下只有约 0.67 MB 的 `dist/server.js` 和迁移文件，没有源码和 `node_modules`；连接地址是容器运行时由 Compose 注入的。
+镜像以 `node` 用户运行；镜像自身的环境变量中没有 `DATABASE_URL` 或密码；`/app` 下只有约 0.67 MB 的 `dist/server.js` 和迁移文件，没有源码和 `node_modules`；连接地址是容器运行时由 Compose 注入的。
 
 ### 5.3 前端镜像：`deploy/web/Dockerfile`
 
@@ -864,9 +864,9 @@ volumes:
 
 ### 6.2 逐项说明
 
-**顶层 `name: venue-booking`**：项目名。Compose 创建的容器、网络和卷都以它为前缀，例如容器 `venue-booking-api-1`、网络 `venue-booking_backend-net`、卷 `venue-booking_database-data`。命令行的 `-p` 参数可以覆盖它（第 7 节就是这样做的）。
+顶层的 `name: venue-booking` 是项目名。Compose 创建的容器、网络和卷都以它为前缀，例如容器 `venue-booking-api-1`、网络 `venue-booking_backend-net`、卷 `venue-booking_database-data`。命令行的 `-p` 参数可以覆盖它（第 7 节就是这样做的）。
 
-**`database` 服务**
+#### `database` 服务
 
 | 配置                              | 说明                                                                                                                                                 |
 | --------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------- |
@@ -877,7 +877,7 @@ volumes:
 | `networks: backend-net`           | 只接入后端网络；没有 `ports`，不发布到主机                                                                                                           |
 | `healthcheck`                     | 用 `pg_isready` 检查数据库能否接受连接。`$$` 转义为 `$`，让变量在容器内由 shell 展开，而不是被 Compose 在主机上替换；每 5 秒一次，最多重试 10 次，启动后 10 秒内的失败不计入 |
 
-**`api` 服务**
+#### `api` 服务
 
 | 配置                                            | 说明                                                                                                                                                         |
 | ----------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------ |
@@ -889,7 +889,7 @@ volumes:
 | `networks: frontend-net, backend-net`           | 唯一同时接入两个网络的服务：既能被前端访问，又能访问数据库                                                                                                   |
 | `healthcheck`                                   | Node Alpine 镜像中没有 curl，因此用 `node -e` 调用 `fetch` 访问 `/api/health`。该接口会执行 `select 1`，API 健康即表示数据库连接正常                          |
 
-**`frontend` 服务**
+#### `frontend` 服务
 
 | 配置                                       | 说明                                                                       |
 | ------------------------------------------ | -------------------------------------------------------------------------- |
@@ -900,11 +900,13 @@ volumes:
 | `networks: frontend-net`                   | 只接入前端网络，因此无法访问数据库                                         |
 | `healthcheck`                              | 用镜像自带的 `wget` 访问 `/healthz`                                        |
 
-**`networks`**：两个用户自定义的 bridge 网络。在同一网络中，Compose 提供基于服务名的 DNS 解析；不在同一网络的容器之间既不能解析名称，也无法连通。
+#### 网络、卷与启动顺序
 
-**`volumes`**：命名卷 `database-data`。`docker compose down` 不会删除它，只有 `docker compose down -v` 才会。
+`networks` 定义了两个用户自定义的 bridge 网络。在同一网络中，Compose 提供基于服务名的 DNS 解析；不在同一网络的容器之间既不能解析名称，也无法连通。
 
-**启动顺序**：`database` 健康 → 启动 `api` → `api` 健康 → 启动 `frontend`。第 7.2 节的输出中可以看到 Compose 依次等待（`Waiting`）和确认健康（`Healthy`）的过程。
+`volumes` 定义了命名卷 `database-data`。`docker compose down` 不会删除它，只有 `docker compose down -v` 才会。
+
+启动顺序是 `database` 健康 → 启动 `api` → `api` 健康 → 启动 `frontend`。第 7.2 节的输出中可以看到 Compose 依次等待（`Waiting`）和确认健康（`Healthy`）的过程。
 
 ### 6.3 配置与敏感信息
 
@@ -1198,7 +1200,7 @@ Connection: keep-alive
 {"id":3,"name":"Maple Meeting Room","location":"Library, 4F","capacity":12,"openTime":"09:00","closeTime":"18:00","status":"open","description":"Quiet boardroom with a video-conferencing camera and whiteboard wall.","createdAt":"2026-10-19T13:53:03.636Z"}
 ```
 
-3\. 创建一个正常的预约（Maple Meeting Room，2026-10-30 14:00–15:30）：
+3\. 创建一个正常的预约（Maple Meeting Room，2026-10-30 14:00 至 15:30）：
 
 ```text
 PS> curl.exe -sS -i -X POST http://localhost:8090/api/reservations -H 'content-type: application/json' -d '{"venueId":3,"bookerName":"Robotics Club","attendeeCount":8,"date":"2026-10-30","startTime":"14:00","endTime":"15:30","purpose":"Sprint planning"}'
@@ -1226,7 +1228,7 @@ Connection: keep-alive
 {"id":1,"venueId":3,"venue":{"id":3,"name":"Maple Meeting Room","location":"Library, 4F"},"bookerName":"Robotics Club","attendeeCount":8,"date":"2026-10-30","startTime":"14:00","endTime":"15:30","purpose":"Sprint planning","status":"confirmed","createdAt":"2026-10-19T13:53:37.224Z","cancelledAt":null}
 ```
 
-5\. 为同一场地、同一天提交与之重叠的 15:00–16:00，后端拒绝：
+5\. 为同一场地、同一天提交与之重叠的 15:00 至 16:00，后端拒绝：
 
 ```text
 PS> curl.exe -sS -i -X POST http://localhost:8090/api/reservations -H 'content-type: application/json' -d '{"venueId":3,"bookerName":"Chess Club","attendeeCount":6,"date":"2026-10-30","startTime":"15:00","endTime":"16:00","purpose":"Weekly practice"}'
@@ -1282,8 +1284,8 @@ PS> curl.exe -sS 'http://localhost:8090/api/reservations?venueId=3&date=2026-10-
 | 4    | `GET /api/reservations/1`                         | 200    | 返回预约 1                                                   |
 | 5    | `POST /api/reservations`，15:00–16:00             | 409    | `RESERVATION_CONFLICT`，`data.conflicts` 指出与预约 1 重叠   |
 | 6    | `POST /api/reservations/1/cancel`                 | 200    | 状态变为 `cancelled`，记录取消时间                           |
-| 7    | 再次 `POST /api/reservations`，15:00–16:00        | 201    | 新预约编号 3：已取消的预约不再占用时段，符合设计             |
-| —    | `GET /api/reservations?venueId=3&date=2026-10-30` | 200    | 预约 1（已取消，记录保留）和预约 3（已确认）                 |
+| 7    | 再次 `POST /api/reservations`，15:00–16:00        | 201    | 新预约编号 3：已取消的预约不再占用时段                       |
+| 最后 | `GET /api/reservations?venueId=3&date=2026-10-30` | 200    | 预约 1（已取消，记录保留）和预约 3（已确认）                 |
 
 ### 7.7 参数校验与错误处理
 
@@ -1575,11 +1577,11 @@ PS> docker volume inspect venue-booking-report_database-data
 
 卷创建于 13:48:55（UTC，即第 7.2 节首次启动时），标签表明它属于该 Compose 项目中的 `database-data` 卷。
 
-**结论**：容器被删除重建后，预约数据仍然存在，因为 PostgreSQL 的数据保存在命名卷中，而不是容器的可写层中。
+容器被删除重建后，预约数据仍然存在，因为 PostgreSQL 的数据保存在命名卷中，而不是容器的可写层中。
 
 ### 7.10 网络隔离验证
 
-**前端无法访问数据库**：
+#### 前端无法访问数据库
 
 ```text
 PS> docker compose -p venue-booking-report exec frontend getent hosts database
@@ -1598,7 +1600,7 @@ PS> docker compose -p venue-booking-report exec frontend nc -zv -w 3 172.21.0.2 
 nc: 172.21.0.2 (172.21.0.2:5432): Operation timed out
 ```
 
-**前端可以访问 API**：
+#### 前端可以访问 API
 
 ```text
 PS> docker compose -p venue-booking-report exec frontend getent hosts api
@@ -1608,7 +1610,7 @@ PS> docker compose -p venue-booking-report exec frontend wget -qO- http://api:30
 {"status":"ok","database":"up"}
 ```
 
-**API 通过服务名连接数据库**：
+#### API 通过服务名连接数据库
 
 ```text
 PS> docker compose -p venue-booking-report exec api getent hosts database
@@ -1618,7 +1620,7 @@ PS> docker compose -p venue-booking-report exec api nc -zv -w 3 database 5432
 database (172.21.0.2:5432) open
 ```
 
-**各网络中的容器**：
+#### 各网络中的容器
 
 ```text
 PS> docker network inspect venue-booking-report_frontend-net --format '{{range .Containers}}{{.Name}} {{end}}'
@@ -1628,7 +1630,7 @@ PS> docker network inspect venue-booking-report_backend-net --format '{{range .C
 venue-booking-report-database-1 venue-booking-report-api-1
 ```
 
-**数据库端口没有发布到主机**：
+#### 数据库端口没有发布到主机
 
 ```text
 PS> docker inspect --format '{{json .HostConfig.PortBindings}}' venue-booking-report-database-1 venue-booking-report-api-1 venue-booking-report-frontend-1
@@ -1662,7 +1664,7 @@ PS> curl.exe -s --connect-timeout 3 telnet://127.0.0.1:5432
 
 ### 用例 2：查看场地信息并选择时段
 
-点击 Seminar Room 305 进入场地页面，页面显示位置、容量、开放时间和简介，以及当天以 30 分钟为单位的时间表（已有 09:00–11:00 的预约）。先点 13:00 的时段，再点 14:00 的时段，选中 13:00–14:30（1 小时 30 分钟），然后填写预约人或组织、参加人数和用途。页面调用 `GET /api/venues/2` 和 `GET /api/reservations?venueId=2&date=2026-10-30&status=confirmed`。
+点击 Seminar Room 305 进入场地页面，页面显示位置、容量、开放时间和简介，以及当天以 30 分钟为单位的时间表（已有 09:00 至 11:00 的预约）。先点 13:00 的时段，再点 14:00 的时段，选中 13:00 至 14:30（1 小时 30 分钟），然后填写预约人或组织、参加人数和用途。页面调用 `GET /api/venues/2` 和 `GET /api/reservations?venueId=2&date=2026-10-30&status=confirmed`。
 
 ![选择时段并填写预约信息](report-assets/02-venue-booking.png)
 
@@ -1672,9 +1674,9 @@ PS> curl.exe -s --connect-timeout 3 telnet://127.0.0.1:5432
 
 ![预约确认单](report-assets/03-confirmation.png)
 
-### 用例 4：失败信息——时间冲突与参数错误
+### 用例 4：失败信息（时间冲突与参数错误）
 
-回到同一场地，在 Start/End 下拉框中选择 14:00–15:00（时间表上已预约的时段不能点击，但下拉框允许选择任意时间）。前端发现与已确认的预约重叠，先给出提示 “This time overlaps a confirmed booking, so the venue will reject it.”，但仍允许提交。提交后 API 返回 409，Playwright 记录到的响应为：
+回到同一场地，在 Start/End 下拉框中选择 14:00 至 15:00（时间表上已预约的时段不能点击，但下拉框允许选择任意时间）。前端发现与已确认的预约重叠，先给出提示 “This time overlaps a confirmed booking, so the venue will reject it.”，但仍允许提交。提交后 API 返回 409，Playwright 记录到的响应为：
 
 ```json
 {"defined":true,"code":"RESERVATION_CONFLICT","status":409,"message":"The requested time overlaps 1 existing reservation(s)","data":{"conflicts":[{"id":12,"startTime":"13:00","endTime":"14:30"}]}}
@@ -1684,7 +1686,7 @@ PS> curl.exe -s --connect-timeout 3 telnet://127.0.0.1:5432
 
 ![冲突预约被后端拒绝](report-assets/04-conflict.png)
 
-参数错误：选中 17:00–18:00，把人数填为 40（该场地最多 32 人），不填预约人和用途就提交。表单用与 API 相同的规则逐项标出错误，这次没有发出任何请求；即使绕过前端直接调用 API，同样会得到 400 错误（第 7.7 节）。
+参数错误：选中 17:00 至 18:00，把人数填为 40（该场地最多 32 人），不填预约人和用途就提交。表单用与 API 相同的规则逐项标出错误，这次没有发出任何请求；即使绕过前端直接调用 API，同样会得到 400 错误（第 7.7 节）。
 
 ![表单参数错误提示](report-assets/11-form-errors.png)
 
@@ -1694,7 +1696,7 @@ PS> curl.exe -s --connect-timeout 3 telnet://127.0.0.1:5432
 
 ![取消确认对话框](report-assets/05-cancel-dialog.png)
 
-确认后，前端发送 `POST /api/reservations/12/cancel`。确认单的状态变为 “Cancelled”，时间加删除线，并显示取消时间；右下角提示 “13:00–14:30 at Seminar Room 305 is available again.”。该时段随即可以重新预约：用例 4 中的参数错误截图是在取消之后拍摄的，图中 13:00–14:30 已恢复为空闲。
+确认后，前端发送 `POST /api/reservations/12/cancel`。确认单的状态变为 “Cancelled”，时间加删除线，并显示取消时间；右下角提示 “13:00–14:30 at Seminar Room 305 is available again.”。该时段随即可以重新预约：用例 4 中的参数错误截图是在取消之后拍摄的，图中 13:00 至 14:30 已恢复为空闲。
 
 ![预约已取消](report-assets/06-cancelled.png)
 
@@ -1712,7 +1714,7 @@ PS> curl.exe -s --connect-timeout 3 telnet://127.0.0.1:5432
 
 ### 用例 8：简体中文界面
 
-点击页头的 “中文” 按钮即可切换到简体中文，选择保存在浏览器的 `localStorage` 中；浏览器语言为中文时会自动使用中文界面。下面两张截图使用中文浏览器环境拍摄：预约看板，以及在场地页面选中 12:00–13:30 并填写中文预约信息。场地名称和简介属于数据，按录入时的内容显示。
+点击页头的 “中文” 按钮即可切换到简体中文，选择保存在浏览器的 `localStorage` 中；浏览器语言为中文时会自动使用中文界面。下面两张截图使用中文浏览器环境拍摄：预约看板，以及在场地页面选中 12:00 至 13:30 并填写中文预约信息。场地名称和简介属于数据，按录入时的内容显示。
 
 ![中文预约看板](report-assets/09-board-zh.png)
 
@@ -1758,7 +1760,7 @@ PS> curl.exe -s --connect-timeout 3 telnet://127.0.0.1:5432
 | 7.3 配置要求                                           | 提交 `.env.example`，`.env` 被 Git 忽略                                                          | 6.3                   |
 | 8.1 / 8.2 / 8.3 验收                                   | 全部按要求执行                                                                                   | 7.6 / 7.2–7.5 / 7.9   |
 
-除手工验证外，仓库还包含自动化测试。本次在本机运行的结果（2026-10-19 21:48–21:52）：
+除手工验证外，仓库还包含自动化测试。本次在本机运行的结果（2026-10-19 21:48 至 21:52）：
 
 ```text
 PS> bun run test
@@ -1789,7 +1791,7 @@ Lighthouse 按 `lighthouserc.json` 的桌面配置，对本次部署的首页、
 | `/venues/1` | 99 | 100 | 100 | 100 |
 | `/reservations` | 97 | 100 | 100 | 100 |
 
-此外，`bun run typecheck`、`bun run lint`、`bun run format:check`、`bun run knip`、`bun run build` 和第 7.2 节的 Docker 构建、健康检查均通过。API 和前端本机构建输出为：
+`bun run typecheck`、`bun run lint`、`bun run format:check`、`bun run knip`、`bun run build` 和第 7.2 节的 Docker 构建、健康检查均通过。API 和前端本机构建输出为：
 
 ```text
 PS> bun run build

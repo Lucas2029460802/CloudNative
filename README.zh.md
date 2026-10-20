@@ -31,7 +31,7 @@
 | `api`      | `venue-booking/api:1.0.0`      | REST API、参数校验、冲突检查、迁移与种子数据 | `frontend-net`、`backend-net` | 无             |
 | `database` | `postgres:18.6-alpine3.24`     | 将场地和预约数据持久化到 `database-data` 卷  | `backend-net`                 | 无             |
 
-浏览器只访问前端所在的源，因此无需配置 CORS，也无需在构建时指定 API 地址。`frontend` 容器没有接入 `backend-net`，既解析不到也连不上数据库。主机上只开放 8080 端口。
+浏览器只访问前端所在的源，因此无需配置 CORS，也无需在构建时指定 API 地址。`frontend` 容器没有接入 `backend-net`，既解析不到也连不上数据库。
 
 ## 技术栈
 
@@ -138,7 +138,7 @@ Docker Compose 会读取仓库根目录下的 `.env`。`.env` 已被 Git 忽略�
 
 两个 Dockerfile 都以仓库根目录为构建上下文，并共用根目录的 `.dockerignore`，排除 `node_modules`、构建产物、`.env` 文件、Git 数据、测试和文档。
 
-- `deploy/api/Dockerfile`：第一阶段（`oven/bun:1.4.2-alpine`）按锁文件只安装 API 所需的依赖，并用 tsup 把 API 打包成单个 `dist/server.js`。运行阶段（`node:24.22.0-alpine3.24`）只包含该文件和 SQL 迁移，没有源码、`node_modules` 或构建工具；以非 root 的 `node` 用户运行，监听 3000 端口。
+- `deploy/api/Dockerfile`：第一阶段（`oven/bun:1.4.2-alpine`）按锁文件只安装 API 所需的依赖，并用 `bun build` 把 API 打包成单个 `dist/server.js`。运行阶段（`node:24.22.0-alpine3.24`）只包含该文件和 SQL 迁移，没有源码、`node_modules` 或构建工具；以非 root 的 `node` 用户运行，监听 3000 端口。
 - `deploy/web/Dockerfile`：第一阶段用 Vite 构建 React 应用。运行阶段（`nginxinc/nginx-unprivileged:1.30.6-alpine3.24`）以 uid 101 在 8080 端口提供静态文件，把 `/api/` 转发到 `API_UPSTREAM`（默认 `http://api:3000`），并把前端路由回退到 `index.html`。代理在每次请求时解析 API 主机名，因此 API 容器重建后仍能连上。
 
 单独构建镜像：
@@ -259,20 +259,20 @@ Vite 开发服务器会把 `/api` 转发给 API，与 Docker 中的 nginx 一致
 
 ## 数据模型与预约规则
 
-**venues（场地）**：`id`（自增主键）、`name`、`location`、`capacity`（大于 0）、`open_time` 与 `close_time`（`time` 类型，开放早于关闭）、`status`（`open` | `disabled`）、`description`、`created_at`。
+`venues`（场地）：`id`（自增主键）、`name`、`location`、`capacity`（大于 0）、`open_time` 与 `close_time`（`time` 类型，开放早于关闭）、`status`（`open` | `disabled`）、`description`、`created_at`。
 
-**reservations（预约）**：`id`（自增主键）、`venue_id`（外键，引用 `venues.id`，`ON DELETE RESTRICT`）、`booker_name`、`attendee_count`（大于 0）、`reservation_date`（`date`）、`start_time` 与 `end_time`（`time`，开始早于结束）、`purpose`、`status`（`confirmed` | `cancelled`）、`created_at`、`cancelled_at`。检查约束保证仅当状态为 `cancelled` 时 `cancelled_at` 有值。`(venue_id, reservation_date)` 上的索引用于按日查询。
+`reservations`（预约）：`id`（自增主键）、`venue_id`（外键，引用 `venues.id`，`ON DELETE RESTRICT`）、`booker_name`、`attendee_count`（大于 0）、`reservation_date`（`date`）、`start_time` 与 `end_time`（`time`，开始早于结束）、`purpose`、`status`（`confirmed` | `cancelled`）、`created_at`、`cancelled_at`。检查约束保证仅当状态为 `cancelled` 时 `cancelled_at` 有值。`(venue_id, reservation_date)` 上的索引用于按日查询。
 
 表结构定义在 `apps/api/src/db/schema.ts`，由 `apps/api/drizzle/` 中的 Drizzle 迁移创建，API 启动时自动执行。
 
-只有同时满足以下条件，预约才会被接受：场地存在且开放、请求格式正确、时段在开放时间内、开始时间在未来、人数不超过容量，并且与同一场地的**已确认**预约不重叠。时段为左闭右开区间，因此 09:00–10:00 与 10:00–11:00 可以同时预约。
+只有同时满足以下条件，预约才会被接受：场地存在且开放、请求格式正确、时段在开放时间内、开始时间在未来、人数不超过容量，并且与同一场地的**已确认**预约不重叠。时段为左闭右开区间，因此 09:00 至 10:00 与 10:00 至 11:00 可以同时预约。
 
-冲突由数据库原子地阻止，并发请求也不会重复预约：
+数据库以原子方式阻止冲突，因此并发请求也不会重复预约：
 
 1. API 先校验场地、时间和人数，再插入预约。若 PostgreSQL 因排他约束拒绝插入（SQLSTATE `23P01`），API 返回 409，并附带冲突的时间段。
 2. PostgreSQL 的排他约束（`EXCLUDE USING gist (venue_id WITH =, tsrange(date + start, date + end) WITH &&) WHERE (status = 'confirmed')`，迁移 `0001`）即使绕过 API 也会拒绝重叠。
 
-**取消采用逻辑取消。** 取消时把 `status` 设为 `cancelled` 并记录 `cancelled_at`，保留该行作为记录。已取消的预约不参与重叠检查，也不受排他约束限制，所以该时段可以立即被重新预约。对已取消的预约再次取消会原样返回（幂等）。
+取消是逻辑取消：把 `status` 设为 `cancelled` 并记录 `cancelled_at`，该行作为记录保留。已取消的预约不参与重叠检查，也不受排他约束限制，所以该时段可以立即重新预约。对已取消的预约再次取消会原样返回（幂等）。
 
 日期和时间均为不带时区的当地时间。API 用 `APP_TIME_ZONE`（默认 `Asia/Shanghai`）确定“当前时间”，因此与容器本身使用的 UTC 时钟无关。前端用与 API 相同的 Zod 规则即时校验输入，但所有规则最终都由 API 判定。
 
@@ -306,9 +306,9 @@ docker compose -p venue-booking-e2e down -v
 
 ## 实验一验收步骤
 
-以下命令对正在运行的系统复现实验要求的验收检查（第 8.1–8.3 节）。在 PowerShell 中请使用 `curl.exe` 并转义内部双引号，或直接在 Web 界面中操作。
+以下命令对正在运行的系统复现实验要求的验收检查（第 8.1 至 8.3 节）。在 PowerShell 中请使用 `curl.exe` 并转义内部双引号，或直接在 Web 界面中操作。
 
-**容器验证（8.2）**
+### 容器验证（8.2）
 
 ```bash
 docker compose up --build -d
@@ -320,7 +320,9 @@ docker compose ps
 
 `api`、`database`、`frontend` 均应为 `Up … (healthy)`，且只发布了 `0.0.0.0:8080->8080/tcp`。`curl http://localhost:8080/api/health` 返回 `{"status":"ok","database":"up"}`，说明 API 能连上数据库。`docker compose logs api` 中可以看到迁移和种子数据信息以及每个请求一行日志，没有反复出现的错误。
 
-**预约流程（8.1）**：请把日期换成未来的某一天。
+### 预约流程（8.1）
+
+请把请求中的日期换成未来的某一天。
 
 ```bash
 curl http://localhost:8080/api/venues
@@ -333,11 +335,11 @@ curl -i -X POST http://localhost:8080/api/reservations -H "content-type: applica
 响应为 `201 Created`，其中包含新预约的 `id`。使用这个 id：
 
 - `GET /api/reservations/{id}` 返回该预约。
-- 为同一场地、同一天提交 15:00–16:00 的预约，返回 `409 Conflict`，错误码为 `RESERVATION_CONFLICT`。
+- 为同一场地、同一天提交 15:00 至 16:00 的预约，返回 `409 Conflict`，错误码为 `RESERVATION_CONFLICT`。
 - `POST /api/reservations/{id}/cancel` 返回 `200`，且 `"status":"cancelled"`。
-- 再次提交 15:00–16:00 的预约，返回 `201 Created`，因为已取消的预约不再占用该时段。
+- 再次提交 15:00 至 16:00 的预约，返回 `201 Created`，因为已取消的预约不再占用该时段。
 
-**数据持久化（8.3）**
+### 数据持久化（8.3）
 
 ```bash
 docker compose down
@@ -362,3 +364,4 @@ docker volume ls
 - **API 一直不健康**：查看 `docker compose logs api`。密码中含有 `@`、`/` 等字符会破坏连接 URL。
 - **清空数据重新开始**：执行 `docker compose down -v`，再执行 `docker compose up -d`。
 - **开发时 5432 端口被占用**：把 `POSTGRES_HOST_PORT` 和 `DATABASE_URL` 中的端口改成空闲端口。
+- **Windows 上 `format:check` 报告未修改过的文件**：该检出早于 `.gitattributes`，文件仍是 CRLF 换行。在没有未提交改动时，先执行 `git rm -r --cached -q .`，再执行 `git reset --hard`，以 LF 重新检出文件。

@@ -1,0 +1,3 @@
+# Check out text files with LF on every OS. This overrides core.autocrlf, which Git for
+# Windows turns on by default, so Oxfmt, Linux containers and CI all see the same bytes.
+* text=auto eol=lf

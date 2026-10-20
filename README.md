@@ -31,24 +31,24 @@ Browser ──HTTP :8080──▶ frontend (nginx)          static React build
 | `api`      | `venue-booking/api:1.0.0`      | REST API, validation, conflict checks, migrations and seed data | `frontend-net`, `backend-net` | none           |
 | `database` | `postgres:18.6-alpine3.24`     | Persists venues and reservations in the `database-data` volume  | `backend-net`                 | none           |
 
-The browser only talks to the frontend origin, so no CORS setup is needed and the API base URL needs no build-time configuration. The frontend container is not attached to `backend-net`: it cannot resolve or reach the database. Only port 8080 is published on the host.
+The browser only talks to the frontend origin, so no CORS setup is needed and the API base URL needs no build-time configuration. The frontend container is not attached to `backend-net`: it cannot resolve or reach the database.
 
-## Tech Stack
+## Tech stack
 
 | Layer                | Technologies                                   |
 | -------------------- | ---------------------------------------------- |
 | Frontend             | React 19, TypeScript, Vite 8                   |
-| Routing & Data       | TanStack Router, TanStack Query, TanStack Form |
-| UI & Styling         | shadcn/ui, Base UI, Tailwind CSS v4            |
+| Routing & data       | TanStack Router, TanStack Query, TanStack Form |
+| UI & styling         | shadcn/ui, Base UI, Tailwind CSS v4            |
 | Internationalization | i18next, react-i18next                         |
 | Backend              | Node.js, Hono, oRPC, Zod                       |
 | Database             | PostgreSQL 18, Drizzle ORM                     |
-| Package Management   | Bun Workspaces                                 |
-| Code Quality         | Oxlint, Oxfmt, Knip                            |
+| Package management   | Bun Workspaces                                 |
+| Code quality         | Oxlint, Oxfmt, Knip                            |
 | Testing              | Vitest, Playwright, axe-core, Lighthouse CI    |
 | Infrastructure       | Docker, Docker Compose, Nginx                  |
 
-## Repository Structure
+## Repository structure
 
 ```text
 .
@@ -138,7 +138,7 @@ Inside Compose the API receives `DATABASE_URL=postgres://$POSTGRES_USER:$POSTGRE
 
 Both Dockerfiles use the repository root as build context and a root `.dockerignore` that excludes `node_modules`, build output, `.env` files, Git data, tests, and docs.
 
-- `deploy/api/Dockerfile`: stage one (`oven/bun:1.4.2-alpine`) installs only the API's workspace dependencies from the lockfile and bundles the API with tsup into a single `dist/server.js`. The runtime stage (`node:24.22.0-alpine3.24`) contains just that bundle and the SQL migrations: no source code, `node_modules`, or build tools. It runs as the unprivileged `node` user and listens on port 3000.
+- `deploy/api/Dockerfile`: stage one (`oven/bun:1.4.2-alpine`) installs only the API's workspace dependencies from the lockfile and bundles the API with `bun build` into a single `dist/server.js`. The runtime stage (`node:24.22.0-alpine3.24`) contains just that bundle and the SQL migrations: no source code, `node_modules`, or build tools. It runs as the unprivileged `node` user and listens on port 3000.
 - `deploy/web/Dockerfile`: stage one builds the React app with Vite. The runtime stage (`nginxinc/nginx-unprivileged:1.30.6-alpine3.24`) serves the static files as uid 101 on port 8080, proxies `/api/` to `API_UPSTREAM` (default `http://api:3000`), and falls back to `index.html` for client-side routes. The proxy resolves the API host per request, so a recreated API container is found again.
 
 To build an image on its own:
@@ -151,7 +151,7 @@ docker build -f deploy/api/Dockerfile -t venue-booking/api:1.0.0 .
 docker build -f deploy/web/Dockerfile -t venue-booking/frontend:1.0.0 .
 ```
 
-## Local Development
+## Local development
 
 Prerequisites: [Bun](https://bun.sh) 1.4, Node.js 24, Docker.
 
@@ -257,22 +257,22 @@ Errors share one JSON shape and never include stack traces. Unexpected failures 
 | `RESERVATION_CONFLICT`  | 409    | The range overlaps a confirmed reservation of the same venue              |
 | `INTERNAL_SERVER_ERROR` | 500    | Unexpected server error                                                   |
 
-## Data Model and Booking Rules
+## Data model and booking rules
 
-**venues**: `id` (identity primary key), `name`, `location`, `capacity` (> 0), `open_time` and `close_time` (`time`, open < close), `status` (`open` | `disabled`), `description`, `created_at`.
+`venues`: `id` (identity primary key), `name`, `location`, `capacity` (> 0), `open_time` and `close_time` (`time`, open < close), `status` (`open` | `disabled`), `description`, `created_at`.
 
-**reservations**: `id` (identity primary key), `venue_id` (foreign key to `venues.id`, `ON DELETE RESTRICT`), `booker_name`, `attendee_count` (> 0), `reservation_date` (`date`), `start_time` and `end_time` (`time`, start < end), `purpose`, `status` (`confirmed` | `cancelled`), `created_at`, `cancelled_at`. A check constraint keeps `cancelled_at` set exactly when the status is `cancelled`. An index on `(venue_id, reservation_date)` serves the schedule queries.
+`reservations`: `id` (identity primary key), `venue_id` (foreign key to `venues.id`, `ON DELETE RESTRICT`), `booker_name`, `attendee_count` (> 0), `reservation_date` (`date`), `start_time` and `end_time` (`time`, start < end), `purpose`, `status` (`confirmed` | `cancelled`), `created_at`, `cancelled_at`. A check constraint keeps `cancelled_at` set exactly when the status is `cancelled`. An index on `(venue_id, reservation_date)` serves the schedule queries.
 
 The schema lives in `apps/api/src/db/schema.ts`. Drizzle migrations in `apps/api/drizzle/` create it and are applied automatically when the API starts.
 
-A reservation is accepted only if the venue exists and is open, the request is well-formed, the range lies within the opening hours, it starts in the future, and the attendees fit the venue's capacity. It must also not overlap any **confirmed** reservation of the same venue. Ranges are half-open, so 09:00–10:00 and 10:00–11:00 can both be booked.
+A reservation is accepted only if the venue exists and is open, the request is well-formed, the range lies within the opening hours, it starts in the future, and the attendees fit the venue's capacity. It must also not overlap any **confirmed** reservation of the same venue. Ranges are half-open, so 09:00 to 10:00 and 10:00 to 11:00 can both be booked.
 
-Conflicts are prevented atomically by the database, so concurrent requests cannot double-book:
+The database prevents conflicts atomically, so concurrent requests cannot double-book:
 
 1. The API validates the venue, time, and capacity, then inserts the reservation. If PostgreSQL rejects the insert with an exclusion violation (SQLSTATE `23P01`), the API returns a 409 that names the conflicting time ranges.
 2. PostgreSQL enforces an exclusion constraint (`EXCLUDE USING gist (venue_id WITH =, tsrange(date + start, date + end) WITH &&) WHERE (status = 'confirmed')`, migration `0001`), which also rejects overlaps from writes that bypass the API.
 
-**Cancellation is logical.** Cancelling sets `status = 'cancelled'` and `cancelled_at` but keeps the row as a record. Cancelled reservations are ignored by the overlap check and the constraint, so the time slot can be booked again immediately. Cancelling an already cancelled reservation returns it unchanged (idempotent).
+Cancellation is logical: it sets `status = 'cancelled'` and `cancelled_at` but keeps the row as a record. The overlap check and the constraint ignore cancelled reservations, so the time slot can be booked again immediately. Cancelling an already cancelled reservation returns it unchanged (idempotent).
 
 Dates and times are wall-clock values without a time zone. The API uses `APP_TIME_ZONE` (default `Asia/Shanghai`) to decide what "now" is, so the container's own UTC clock does not matter. The frontend validates input with the same Zod schemas as the API for immediate feedback, but the API makes the final decision on every rule.
 
@@ -304,11 +304,11 @@ E2E_BASE_URL=http://localhost:8081 bun run test:e2e
 docker compose -p venue-booking-e2e down -v
 ```
 
-## Lab 1 Verification Walkthrough
+## Lab 1 verification walkthrough
 
-The commands below reproduce the acceptance checks of the lab (sections 8.1–8.3) against the running stack. In PowerShell, use `curl.exe` and escape the inner double quotes, or use the web UI instead.
+These commands reproduce the lab's acceptance checks (sections 8.1 to 8.3) against the running stack. In PowerShell, use `curl.exe` and escape the inner double quotes, or use the web UI instead.
 
-**Containers (8.2)**
+### Containers (8.2)
 
 ```bash
 docker compose up --build -d
@@ -320,7 +320,9 @@ docker compose ps
 
 Expect `api`, `database`, and `frontend` to be `Up … (healthy)`, with only `0.0.0.0:8080->8080/tcp` published. `curl http://localhost:8080/api/health` returns `{"status":"ok","database":"up"}`, which proves the API reaches the database. `docker compose logs api` shows the migration and seed messages and one line per request, without recurring errors.
 
-**Booking flow (8.1)**: replace the date with a future day.
+### Booking flow (8.1)
+
+Replace the date in the request with a future day.
 
 ```bash
 curl http://localhost:8080/api/venues
@@ -333,11 +335,11 @@ curl -i -X POST http://localhost:8080/api/reservations -H "content-type: applica
 The response is `201 Created` and contains the new reservation `id`. Using that id:
 
 - `GET /api/reservations/{id}` returns the reservation.
-- Posting 15:00–16:00 for the same venue and day returns `409 Conflict` with code `RESERVATION_CONFLICT`.
+- Posting 15:00 to 16:00 for the same venue and day returns `409 Conflict` with code `RESERVATION_CONFLICT`.
 - `POST /api/reservations/{id}/cancel` returns `200` with `"status":"cancelled"`.
-- Posting 15:00–16:00 again now returns `201 Created`, because cancelled reservations no longer block the slot.
+- Posting 15:00 to 16:00 again now returns `201 Created`, because cancelled reservations no longer block the slot.
 
-**Persistence (8.3)**
+### Persistence (8.3)
 
 ```bash
 docker compose down
@@ -347,7 +349,7 @@ docker compose down
 docker compose up -d
 ```
 
-Request `GET /api/reservations/{id}` again: the reservation is still there, because PostgreSQL stores its data in the named volume:
+Request `GET /api/reservations/{id}` again. The reservation is still there because PostgreSQL stores its data in the named volume:
 
 ```bash
 docker volume ls
@@ -362,3 +364,4 @@ The output lists `venue-booking_database-data`.
 - **API stays unhealthy**: check `docker compose logs api`. A password with characters such as `@` or `/` breaks the connection URL.
 - **Start over with an empty database**: `docker compose down -v`, then `docker compose up -d`.
 - **Port 5432 is in use during development**: set `POSTGRES_HOST_PORT` and the port in `DATABASE_URL` to a free port.
+- **`format:check` fails on Windows for files you did not touch**: the checkout predates `.gitattributes`, so its files still have CRLF line endings. With no uncommitted changes, run `git rm -r --cached -q .` and then `git reset --hard` to check them out again with LF.
