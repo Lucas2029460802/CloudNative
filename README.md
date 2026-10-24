@@ -120,17 +120,17 @@ docker compose down
 
 Docker Compose reads `.env` from the repository root. `.env` is ignored by Git; `.env.example` lists every variable with example values.
 
-| Variable             | Default (example)               | Used by             | Purpose                                                      |
-| -------------------- | ------------------------------- | ------------------- | ------------------------------------------------------------ |
-| `POSTGRES_DB`        | `venue_booking`                 | database, api       | Database name                                                |
-| `POSTGRES_USER`      | `venue`                         | database, api       | Database user                                                |
-| `POSTGRES_PASSWORD`  | `change-me-local-only`          | database, api       | Database password (required, URL-safe characters)            |
-| `FRONTEND_PORT`      | `8080`                          | frontend            | Host port of the web UI                                      |
-| `APP_TIME_ZONE`      | `Asia/Shanghai`                 | api                 | Time zone used to reject reservations that start in the past |
-| `DB_SEED_ON_START`   | `true`                          | api                 | Insert demo venues when the venue table is empty             |
-| `IMAGE_TAG`          | `1.0.0`                         | compose             | Tag of the locally built images                              |
-| `POSTGRES_HOST_PORT` | `5432`                          | `compose.dev.yaml`  | Loopback port for PostgreSQL during local development        |
-| `DATABASE_URL`       | `postgres://…@localhost:5432/…` | local `bun run dev` | Connection URL for the API outside Docker                    |
+| Variable             | Default (example)               | Used by             | Purpose                                                                                                |
+| -------------------- | ------------------------------- | ------------------- | ------------------------------------------------------------------------------------------------------ |
+| `POSTGRES_DB`        | `venue_booking`                 | database, api       | Database name                                                                                          |
+| `POSTGRES_USER`      | `venue`                         | database, api       | Database user                                                                                          |
+| `POSTGRES_PASSWORD`  | `change-me-local-only`          | database, api       | Database password (required, URL-safe characters)                                                      |
+| `FRONTEND_PORT`      | `8080`                          | frontend            | Host port of the web UI (Docker-published ports bypass ufw; `127.0.0.1:8080` keeps the UI on loopback) |
+| `APP_TIME_ZONE`      | `Asia/Shanghai`                 | api                 | Time zone used to reject reservations that start in the past                                           |
+| `DB_SEED_ON_START`   | `true`                          | api                 | Insert demo venues when the venue table is empty                                                       |
+| `IMAGE_TAG`          | `1.0.0`                         | compose             | Tag of the locally built images                                                                        |
+| `POSTGRES_HOST_PORT` | `5432`                          | `compose.dev.yaml`  | Loopback port for PostgreSQL during local development                                                  |
+| `DATABASE_URL`       | `postgres://…@localhost:5432/…` | local `bun run dev` | Connection URL for the API outside Docker                                                              |
 
 Inside Compose the API receives `DATABASE_URL=postgres://$POSTGRES_USER:$POSTGRES_PASSWORD@database:5432/$POSTGRES_DB`, where `database` is the Compose service name. No password is stored in the source code or in an image.
 

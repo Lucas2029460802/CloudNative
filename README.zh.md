@@ -120,17 +120,17 @@ docker compose down
 
 Docker Compose 会读取仓库根目录下的 `.env`。`.env` 已被 Git 忽略；`.env.example` 列出了所有变量和示例值。
 
-| 变量                 | 示例值                          | 使用者             | 用途                                  |
-| -------------------- | ------------------------------- | ------------------ | ------------------------------------- |
-| `POSTGRES_DB`        | `venue_booking`                 | database、api      | 数据库名                              |
-| `POSTGRES_USER`      | `venue`                         | database、api      | 数据库用户                            |
-| `POSTGRES_PASSWORD`  | `change-me-local-only`          | database、api      | 数据库密码（必填，只用 URL 安全字符） |
-| `FRONTEND_PORT`      | `8080`                          | frontend           | Web 界面在主机上的端口                |
-| `APP_TIME_ZONE`      | `Asia/Shanghai`                 | api                | 用于判断预约是否已开始的时区          |
-| `DB_SEED_ON_START`   | `true`                          | api                | 场地表为空时写入演示场地              |
-| `IMAGE_TAG`          | `1.0.0`                         | compose            | 本地构建镜像的标签                    |
-| `POSTGRES_HOST_PORT` | `5432`                          | `compose.dev.yaml` | 本地开发时 PostgreSQL 的回环地址端口  |
-| `DATABASE_URL`       | `postgres://…@localhost:5432/…` | 本地 `bun run dev` | 在 Docker 外运行 API 时的连接 URL     |
+| 变量                 | 示例值                          | 使用者             | 用途                                                                                            |
+| -------------------- | ------------------------------- | ------------------ | ----------------------------------------------------------------------------------------------- |
+| `POSTGRES_DB`        | `venue_booking`                 | database、api      | 数据库名                                                                                        |
+| `POSTGRES_USER`      | `venue`                         | database、api      | 数据库用户                                                                                      |
+| `POSTGRES_PASSWORD`  | `change-me-local-only`          | database、api      | 数据库密码（必填，只用 URL 安全字符）                                                           |
+| `FRONTEND_PORT`      | `8080`                          | frontend           | Web 界面在主机上的端口（Docker 发布的端口会绕过 ufw；设为 `127.0.0.1:8080` 可只绑定在回环地址） |
+| `APP_TIME_ZONE`      | `Asia/Shanghai`                 | api                | 用于判断预约是否已开始的时区                                                                    |
+| `DB_SEED_ON_START`   | `true`                          | api                | 场地表为空时写入演示场地                                                                        |
+| `IMAGE_TAG`          | `1.0.0`                         | compose            | 本地构建镜像的标签                                                                              |
+| `POSTGRES_HOST_PORT` | `5432`                          | `compose.dev.yaml` | 本地开发时 PostgreSQL 的回环地址端口                                                            |
+| `DATABASE_URL`       | `postgres://…@localhost:5432/…` | 本地 `bun run dev` | 在 Docker 外运行 API 时的连接 URL                                                               |
 
 在 Compose 中，API 收到的是 `DATABASE_URL=postgres://$POSTGRES_USER:$POSTGRES_PASSWORD@database:5432/$POSTGRES_DB`，其中 `database` 是数据库的服务名。源码和镜像中都不包含密码。
 
