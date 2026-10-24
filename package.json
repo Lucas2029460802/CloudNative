@@ -33,5 +33,12 @@
     "oxlint": "^1.88.0",
     "typescript": "^7.0.2",
     "vitest": "^5.0.5"
+  },
+  "overrides": {
+    "@esbuild-kit/esm-loader": "npm:tsx@^4.23.15",
+    "basic-ftp": "^6.2.3",
+    "lighthouse": "^13.5.0",
+    "tmp": "^0.2.7",
+    "uuid": "^11.1.1"
   }
 }
