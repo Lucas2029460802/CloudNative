@@ -19,7 +19,7 @@ COPY apps/api/ apps/api/
 RUN bun run --cwd apps/api build
 
 # ---- Runtime stage: Node.js with only the bundle and the SQL migrations ----
-FROM node:24.22.1-alpine3.24 AS runtime
+FROM node:26.12.0-alpine3.24 AS runtime
 ENV NODE_ENV=production \
     PORT=3000
 WORKDIR /app
