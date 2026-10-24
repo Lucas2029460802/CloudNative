@@ -1,0 +1,46 @@
+version: 2
+
+# Weekly version updates. Dependabot waits 3 days after a release before
+# proposing it (its default cooldown).
+updates:
+  # The root package.json and bun.lock cover all workspaces.
+  - package-ecosystem: bun
+    directory: /
+    schedule:
+      interval: weekly
+    groups:
+      minor-and-patch:
+        patterns: ["*"]
+        update-types: [minor, patch]
+
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+    groups:
+      github-actions:
+        patterns: ["*"]
+
+  # Base images of the API and frontend.
+  - package-ecosystem: docker
+    directories:
+      - /deploy/api
+      - /deploy/web
+    schedule:
+      interval: weekly
+    groups:
+      # One pull request per image, e.g. oven/bun in both Dockerfiles.
+      base-images:
+        group-by: dependency-name
+
+  # The PostgreSQL image in compose.yaml.
+  - package-ecosystem: docker-compose
+    directory: /
+    schedule:
+      interval: weekly
+    ignore:
+      # A new major version cannot read the existing data volume without pg_upgrade.
+      - dependency-name: postgres
+        update-types: ["version-update:semver-major"]
+      # Built from this repository, not pulled from a registry.
+      - dependency-name: venue-booking/*
