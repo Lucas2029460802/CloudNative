@@ -500,7 +500,7 @@ blob-report
 # Backend API image. Build context: repository root (see compose.yaml).
 
 # ---- Build stage: install workspace dependencies and bundle the API ----
-FROM oven/bun:1.4.2-alpine AS build
+FROM oven/bun:1.4.4-alpine AS build
 WORKDIR /app
 
 # Copy manifests first so the dependency layer stays cached until they change.
@@ -517,7 +517,7 @@ COPY apps/api/ apps/api/
 RUN bun run --cwd apps/api build
 
 # ---- Runtime stage: Node.js with only the bundle and the SQL migrations ----
-FROM node:24.22.0-alpine3.24 AS runtime
+FROM node:24.22.1-alpine3.24 AS runtime
 ENV NODE_ENV=production \
     PORT=3000
 WORKDIR /app
@@ -537,11 +537,11 @@ CMD ["node", "dist/server.js"]
 | 部分                                                       | 说明                                                                                                                                                                  |
 | ---------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `# syntax=docker/dockerfile:1`                             | 使用 Dockerfile 1.x 的 BuildKit 语法                                                                                                                                  |
-| `FROM oven/bun:1.4.2-alpine AS build`                      | 构建阶段：仓库用 Bun 管理依赖和工作区，基础镜像固定到具体版本                                                                                                         |
+| `FROM oven/bun:1.4.4-alpine AS build`                      | 构建阶段：仓库用 Bun 管理依赖和工作区，基础镜像固定到具体版本                                                                                                         |
 | 先 `COPY` 各个 `package.json` 和 `bun.lock`，再 `bun install` | 依赖层只在清单或锁文件变化时重建，修改源码不会触发重新安装。`--frozen-lockfile` 要求依赖与锁文件完全一致；`--production --filter @venue/api` 只安装 API 所需的生产依赖。锁文件覆盖所有工作区，所以 web 的 `package.json` 也要复制 |
 | `COPY packages/contracts/`、`COPY apps/api/`                 | 只复制 API 及其依赖的共享契约，不复制前端源码                                                                                                                         |
 | `RUN bun run --cwd apps/api build`                         | 执行 `bun build src/server.ts --target=node --outdir=dist`，把入口和依赖打包成单个 ESM 文件 `dist/server.js`，运行时不再需要 `node_modules`                            |
-| `FROM node:24.22.0-alpine3.24 AS runtime`                  | 运行阶段：只有 Node.js 运行时，不含 Bun、TypeScript 等构建工具                                                                                                        |
+| `FROM node:24.22.1-alpine3.24 AS runtime`                  | 运行阶段：只有 Node.js 运行时，不含 Bun、TypeScript 等构建工具                                                                                                        |
 | `ENV NODE_ENV=production PORT=3000`                       | 只设置非敏感的默认值                                                                                                                                                  |
 | `COPY --from=build … ./dist`、`… ./drizzle`                  | 从构建阶段只取打包产物和 SQL 迁移文件                                                                                                                                 |
 | （注释）`DATABASE_URL` 来自运行时环境                        | 数据库地址、用户和密码由 Compose 在创建容器时通过环境变量传入，镜像中没有密码                                                                                          |
@@ -594,7 +594,7 @@ postgres://venue:****@database:5432/venue_booking
 # Frontend image. Build context: repository root (see compose.yaml).
 
 # ---- Build stage: compile the React app into static files ----
-FROM oven/bun:1.4.2-alpine AS build
+FROM oven/bun:1.4.4-alpine AS build
 WORKDIR /app
 
 # Copy manifests first so the dependency layer stays cached until they change.
@@ -624,7 +624,7 @@ EXPOSE 8080
 
 | 部分                                                       | 说明                                                                                                                                                       |
 | ---------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| 构建阶段 `oven/bun:1.4.2-alpine`                           | 与后端相同的依赖缓存方式；`--filter @venue/web` 只安装前端依赖                                                                                             |
+| 构建阶段 `oven/bun:1.4.4-alpine`                           | 与后端相同的依赖缓存方式；`--filter @venue/web` 只安装前端依赖                                                                                             |
 | `COPY packages/contracts/`、`COPY apps/web/`                 | 只复制前端源码和共享契约                                                                                                                                   |
 | `RUN bun run --cwd apps/web build`                         | 执行 `tsc -b && vite build`，先做类型检查，再输出静态文件到 `apps/web/dist`                                                                                |
 | 运行阶段 `nginxinc/nginx-unprivileged:1.30.6-alpine3.24`   | 官方 nginx 的非 root 变体，以 uid 101 运行，监听非特权端口 8080；运行镜像中没有 Node.js、Bun 和源码                                                         |
@@ -739,8 +739,8 @@ server {
 
 | 镜像                                            | 用途                     |
 | ----------------------------------------------- | ------------------------ |
-| `oven/bun:1.4.2-alpine`                         | 前后端的构建阶段         |
-| `node:24.22.0-alpine3.24`                       | API 的运行阶段           |
+| `oven/bun:1.4.4-alpine`                         | 前后端的构建阶段         |
+| `node:24.22.1-alpine3.24`                       | API 的运行阶段           |
 | `nginxinc/nginx-unprivileged:1.30.6-alpine3.24` | 前端的运行阶段           |
 | `postgres:18.6-alpine3.24`                      | 数据库（标准镜像，直接使用） |
 

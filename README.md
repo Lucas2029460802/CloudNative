@@ -138,7 +138,7 @@ Inside Compose the API receives `DATABASE_URL=postgres://$POSTGRES_USER:$POSTGRE
 
 Both Dockerfiles use the repository root as build context and a root `.dockerignore` that excludes `node_modules`, build output, `.env` files, Git data, tests, and docs.
 
-- `deploy/api/Dockerfile`: stage one (`oven/bun:1.4.2-alpine`) installs only the API's workspace dependencies from the lockfile and bundles the API with `bun build` into a single `dist/server.js`. The runtime stage (`node:24.22.0-alpine3.24`) contains just that bundle and the SQL migrations: no source code, `node_modules`, or build tools. It runs as the unprivileged `node` user and listens on port 3000.
+- `deploy/api/Dockerfile`: stage one (`oven/bun:1.4.4-alpine`) installs only the API's workspace dependencies from the lockfile and bundles the API with `bun build` into a single `dist/server.js`. The runtime stage (`node:24.22.1-alpine3.24`) contains just that bundle and the SQL migrations: no source code, `node_modules`, or build tools. It runs as the unprivileged `node` user and listens on port 3000.
 - `deploy/web/Dockerfile`: stage one builds the React app with Vite. The runtime stage (`nginxinc/nginx-unprivileged:1.30.6-alpine3.24`) serves the static files as uid 101 on port 8080, proxies `/api/` to `API_UPSTREAM` (default `http://api:3000`), and falls back to `index.html` for client-side routes. The proxy resolves the API host per request, so a recreated API container is found again.
 
 To build an image on its own:
