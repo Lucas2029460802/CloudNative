@@ -125,7 +125,8 @@ export function SlotPicker({
                     className={cn(
                       "block size-full transition-colors outline-none focus-visible:relative focus-visible:z-30 focus-visible:ring-3 focus-visible:ring-ring/60",
                       state === "free" && "cursor-pointer hover:bg-muted",
-                      state === "past" && "cursor-not-allowed bg-hatch"
+                      state === "past" &&
+                        "cursor-not-allowed bg-muted text-muted-foreground bg-hatch"
                     )}
                   />
                 </li>

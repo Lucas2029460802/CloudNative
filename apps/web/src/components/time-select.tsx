@@ -14,12 +14,15 @@ export function TimeSelect({
   options,
   invalid,
   onChange,
+  isOptionDisabled,
 }: {
   id: string
   value: string
   options: string[]
   invalid: boolean
   onChange: (value: string) => void
+  /** Shown, but grayed out and not choosable. */
+  isOptionDisabled?: (time: string) => boolean
 }) {
   const items = [
     { label: "--:--", value: null },
@@ -41,7 +44,12 @@ export function TimeSelect({
       <SelectContent>
         <SelectGroup>
           {options.map((time) => (
-            <SelectItem key={time} value={time} className="tabular-nums">
+            <SelectItem
+              key={time}
+              value={time}
+              disabled={isOptionDisabled?.(time)}
+              className="tabular-nums data-disabled:bg-muted data-disabled:text-muted-foreground"
+            >
               {time}
             </SelectItem>
           ))}

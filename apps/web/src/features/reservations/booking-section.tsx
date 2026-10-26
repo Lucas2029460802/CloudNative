@@ -251,7 +251,17 @@ export function BookingSection({
                                 value={startTime}
                                 options={slots.map((slot) => slot.startTime)}
                                 invalid={!!timeError}
+                                isOptionDisabled={(time) =>
+                                  now !== undefined && toMinutes(time) <= now
+                                }
                                 onChange={(next) => {
+                                  if (
+                                    next !== "" &&
+                                    now !== undefined &&
+                                    toMinutes(next) <= now
+                                  ) {
+                                    return
+                                  }
                                   // Keep the range valid: end with the new start slot if needed.
                                   const slotEnd =
                                     slots.find(
