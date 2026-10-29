@@ -170,6 +170,17 @@ export function BookingSection({
     onDateChange(next)
   }
 
+  // A booking can only end after its start, and the slot it ends with must not have started.
+  function isEndDisabled(end: string) {
+    const slot = slots.find((candidate) => candidate.endTime === end)
+    return (
+      (startTime !== "" && end <= startTime) ||
+      (slot !== undefined &&
+        now !== undefined &&
+        toMinutes(slot.startTime) <= now)
+    )
+  }
+
   return (
     <div className="grid gap-8 lg:grid-cols-[minmax(0,1fr)_23rem] lg:items-start">
       <section
@@ -283,6 +294,7 @@ export function BookingSection({
                                 value={endTime}
                                 options={slots.map((slot) => slot.endTime)}
                                 invalid={!!timeError}
+                                isOptionDisabled={isEndDisabled}
                                 onChange={(next) => setTimes(startTime, next)}
                               />
                             </Field>

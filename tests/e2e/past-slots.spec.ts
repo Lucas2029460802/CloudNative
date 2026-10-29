@@ -1,4 +1,4 @@
-import { expect, test, type Locator } from "@playwright/test"
+import { expect, test, type Locator, type Page } from "@playwright/test"
 
 const runId = Date.now().toString(36)
 
@@ -9,6 +9,7 @@ const date = "2026-01-15"
 const now = new Date(`${date}T10:12:00+08:00`)
 const past = { startTime: "10:00", endTime: "10:30" }
 const future = { startTime: "10:30", endTime: "11:00" }
+const later = { startTime: "11:00", endTime: "11:30" }
 
 function slotName(
   slot: { startTime: string; endTime: string },
@@ -21,16 +22,14 @@ async function classTokens(locator: Locator) {
   return (await locator.getAttribute("class"))?.split(/\s+/) ?? []
 }
 
-test("grays out a past start and refuses to select it", async ({ page }) => {
-  await page.clock.setFixedTime(now)
-
+async function openNewVenue(page: Page, closeTime: string) {
   const created = await page.request.post("/api/venues", {
     data: {
       name: `Past slots ${runId}`,
       location: "Test Building, 1F",
       capacity: 10,
       openTime: past.startTime,
-      closeTime: future.endTime,
+      closeTime,
     },
   })
   const body = await created.text()
@@ -38,6 +37,14 @@ test("grays out a past start and refuses to select it", async ({ page }) => {
   const venue: { id: number } = JSON.parse(body)
 
   await page.goto(`/venues/${venue.id}?date=${date}`)
+}
+
+test.beforeEach(async ({ page }) => {
+  await page.clock.setFixedTime(now)
+})
+
+test("grays out a past start and refuses to select it", async ({ page }) => {
+  await openNewVenue(page, future.endTime)
 
   const pastButton = page.getByRole("button", {
     name: slotName(past, "already passed"),
@@ -89,4 +96,23 @@ test("grays out a past start and refuses to select it", async ({ page }) => {
       name: `Book ${future.startTime}–${future.endTime}`,
     })
   ).toBeVisible()
+})
+
+test("disables end times a booking cannot use", async ({ page }) => {
+  await openNewVenue(page, later.endTime)
+  const option = (time: string) =>
+    page.getByRole("option", { name: time, exact: true })
+
+  // With no start chosen, the end of the slot that has started is disabled.
+  await page.getByRole("combobox", { name: "End" }).click()
+  await expect(option(past.endTime)).toBeDisabled()
+  await expect(option(future.endTime)).toBeEnabled()
+
+  // Choosing a start also disables every end at or before it.
+  await page.keyboard.press("Escape")
+  await page.getByRole("combobox", { name: "Start" }).click()
+  await option(later.startTime).click()
+  await page.getByRole("combobox", { name: "End" }).click()
+  await expect(option(later.startTime)).toBeDisabled()
+  await expect(option(later.endTime)).toBeEnabled()
 })
