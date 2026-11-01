@@ -276,17 +276,17 @@ Vite 开发服务器会把 `/api` 转发给 API，与 Docker 中的 nginx 一致
 
 日期和时间均为不带时区的当地时间。API 用 `APP_TIME_ZONE`（默认 `Asia/Shanghai`）确定“当前时间”，因此与容器本身使用的 UTC 时钟无关。前端用与 API 相同的 Zod 规则即时校验输入，但所有规则最终都由 API 判定。
 
-## Tests
+## 测试
 
-| Command                    | Scope                                                                                        | Needs                                                                   |
-| -------------------------- | -------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------- |
-| `bun run test:unit`        | Schemas, time helpers, configuration parsing                                                 | nothing                                                                 |
-| `bun run test:integration` | All endpoints against a real PostgreSQL, incl. conflicts, concurrency, DB constraint, errors | Docker (starts a throwaway PostgreSQL container) or `TEST_DATABASE_URL` |
-| `bun run test`             | Unit and integration tests                                                                   | as above                                                                |
-| `bun run test:e2e`         | Browser flows, accessibility (axe), API through the nginx proxy                              | a running stack and Chromium                                            |
-| `bun run test:lighthouse`  | Lighthouse CI on three pages (accessibility ≥ 0.95, best practices ≥ 0.9)                    | a running stack and Chrome                                              |
+| 命令                       | 范围                                                                 | 依赖                                                         |
+| -------------------------- | -------------------------------------------------------------------- | ------------------------------------------------------------ |
+| `bun run test:unit`        | 校验规则、时间工具、配置解析                                         | 无                                                           |
+| `bun run test:integration` | 用真实 PostgreSQL 测试全部接口，包括冲突、并发、数据库约束、错误处理 | Docker（自动启动临时 PostgreSQL 容器）或 `TEST_DATABASE_URL` |
+| `bun run test`             | 单元测试与集成测试                                                   | 同上                                                         |
+| `bun run test:e2e`         | 浏览器流程、无障碍检查（axe）、经 nginx 代理的接口                   | 正在运行的系统和 Chromium                                    |
+| `bun run test:lighthouse`  | 对三个页面运行 Lighthouse CI（无障碍 ≥ 0.95，最佳实践 ≥ 0.9）        | 正在运行的系统和 Chrome                                      |
 
-End-to-end tests default to <http://localhost:8080>. They add a test venue and bookings, so point them at a disposable stack:
+端到端测试默认访问 <http://localhost:8080>。测试会新增场地和预约，建议在临时部署上运行：
 
 ```bash
 bunx playwright install chromium
@@ -304,11 +304,11 @@ E2E_BASE_URL=http://localhost:8081 bun run test:e2e
 docker compose -p venue-booking-e2e down -v
 ```
 
-## Lab 1 verification walkthrough
+## 实验一验收步骤
 
-These commands reproduce the lab's acceptance checks (sections 8.1 to 8.3) against the running stack. In PowerShell, use `curl.exe` and escape the inner double quotes, or use the web UI instead.
+以下命令对正在运行的系统复现实验要求的验收检查（第 8.1 至 8.3 节）。在 PowerShell 中请使用 `curl.exe` 并转义内部双引号，或直接在 Web 界面中操作。
 
-### Containers (8.2)
+### 容器验证（8.2）
 
 ```bash
 docker compose up --build -d
@@ -318,11 +318,11 @@ docker compose up --build -d
 docker compose ps
 ```
 
-Expect `api`, `database`, and `frontend` to be `Up … (healthy)`, with only `0.0.0.0:8080->8080/tcp` published. `curl http://localhost:8080/api/health` returns `{"status":"ok","database":"up"}`, which proves the API reaches the database. `docker compose logs api` shows the migration and seed messages and one line per request, without recurring errors.
+`api`、`database`、`frontend` 均应为 `Up … (healthy)`，且只发布了 `0.0.0.0:8080->8080/tcp`。`curl http://localhost:8080/api/health` 返回 `{"status":"ok","database":"up"}`，说明 API 能连上数据库。`docker compose logs api` 中可以看到迁移和种子数据信息以及每个请求一行日志，没有反复出现的错误。
 
-### Booking flow (8.1)
+### 预约流程（8.1）
 
-Replace the date in the request with a future day.
+请把请求中的日期换成未来的某一天。
 
 ```bash
 curl http://localhost:8080/api/venues
@@ -332,14 +332,14 @@ curl http://localhost:8080/api/venues
 curl -i -X POST http://localhost:8080/api/reservations -H "content-type: application/json" -d '{"venueId":3,"bookerName":"Robotics Club","attendeeCount":8,"date":"2026-10-30","startTime":"14:00","endTime":"15:30","purpose":"Sprint planning"}'
 ```
 
-The response is `201 Created` and contains the new reservation `id`. Using that id:
+响应为 `201 Created`，其中包含新预约的 `id`。使用这个 id：
 
-- `GET /api/reservations/{id}` returns the reservation.
-- Posting 15:00 to 16:00 for the same venue and day returns `409 Conflict` with code `RESERVATION_CONFLICT`.
-- `POST /api/reservations/{id}/cancel` returns `200` with `"status":"cancelled"`.
-- Posting 15:00 to 16:00 again now returns `201 Created`, because cancelled reservations no longer block the slot.
+- `GET /api/reservations/{id}` 返回该预约。
+- 为同一场地、同一天提交 15:00 至 16:00 的预约，返回 `409 Conflict`，错误码为 `RESERVATION_CONFLICT`。
+- `POST /api/reservations/{id}/cancel` 返回 `200`，且 `"status":"cancelled"`。
+- 再次提交 15:00 至 16:00 的预约，返回 `201 Created`，因为已取消的预约不再占用该时段。
 
-### Persistence (8.3)
+### 数据持久化（8.3）
 
 ```bash
 docker compose down
@@ -349,13 +349,13 @@ docker compose down
 docker compose up -d
 ```
 
-Request `GET /api/reservations/{id}` again. The reservation is still there because PostgreSQL stores its data in the named volume:
+再次请求 `GET /api/reservations/{id}`，预约仍然存在，因为 PostgreSQL 的数据保存在命名卷中：
 
 ```bash
 docker volume ls
 ```
 
-The output lists `venue-booking_database-data`.
+输出中包含 `venue-booking_database-data`。
 
 ## Troubleshooting
 
