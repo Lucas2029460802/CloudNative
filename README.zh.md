@@ -1,6 +1,6 @@
 # 场地预约系统
 
-[English](README.md) | [简体中文](README.zh.md)
+[English](README.en.md) | [简体中文](README.md)
 
 复旦大学《CS30074 云原生软件技术》实验一的全栈场地预约系统。
 
@@ -12,6 +12,22 @@
 - 预约记录：按预约人或用途搜索，并可按状态、场地和日期筛选
 - 新增场地；停用的场地仍会显示，但不能预约
 - 支持英文和简体中文、浅色和深色主题，适配手机
+
+## 快速开始
+
+需要 Docker 与 Compose v2（Windows 和 macOS 安装 Docker Desktop 即可）。
+
+```bash
+cp .env.example .env
+```
+
+编辑 `.env`，把 `POSTGRES_PASSWORD` 改成只含字母、数字、`-`、`_`、`.` 的密码，然后：
+
+```bash
+docker compose up --build -d
+```
+
+约 20 秒后打开 <http://localhost:8080>。变量、镜像和常用命令见下方「使用 Docker Compose 运行」。
 
 ## 系统架构
 
