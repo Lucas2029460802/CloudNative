@@ -78,15 +78,15 @@
 └── docs/lab-1.md             # 实验要求
 ```
 
-## Run with Docker Compose
+## 使用 Docker Compose 运行
 
-Prerequisites: Docker with Compose v2 (Docker Desktop on Windows and macOS).
+前置条件：Docker 与 Compose v2（Windows 和 macOS 上安装 Docker Desktop 即可）。
 
 ```bash
 cp .env.example .env
 ```
 
-Edit `.env` and set your own `POSTGRES_PASSWORD` (letters, digits, `-`, `_`, `.` only, because it is embedded in the API's connection URL). Then build and start everything:
+编辑 `.env`，设置自己的 `POSTGRES_PASSWORD`（只使用字母、数字、`-`、`_`、`.`，因为密码会拼进 API 的连接 URL）。然后构建并启动：
 
 ```bash
 docker compose up --build -d
@@ -96,15 +96,15 @@ docker compose up --build -d
 docker compose ps
 ```
 
-All three services report `(healthy)` after about 20 seconds. Open <http://localhost:8080>.
+约 20 秒后三个服务都会显示 `(healthy)`。打开 <http://localhost:8080>。
 
-- API base URL: <http://localhost:8080/api> (through the frontend's reverse proxy)
-- Interactive API reference: <http://localhost:8080/api/docs> (OpenAPI document at `/api/openapi.json`)
-- Health check: <http://localhost:8080/api/health> returns `{"status":"ok","database":"up"}`
+- API 根地址：<http://localhost:8080/api>（经前端反向代理）
+- 交互式接口文档：<http://localhost:8080/api/docs>（OpenAPI 文档位于 `/api/openapi.json`）
+- 健康检查：<http://localhost:8080/api/health> 返回 `{"status":"ok","database":"up"}`
 
-On first start the API applies the database migrations and inserts six demo venues (one of them disabled). Later starts keep existing data and never insert the demo venues again.
+首次启动时，API 会执行数据库迁移并写入六个演示场地（其中一个为停用状态）。之后再启动会保留已有数据，不会重复写入演示场地。
 
-Useful commands:
+常用命令：
 
 ```bash
 docker compose logs -f api
@@ -114,34 +114,34 @@ docker compose logs -f api
 docker compose down
 ```
 
-`docker compose down` keeps the `venue-booking_database-data` volume, so reservations survive. Add `-v` to delete the data as well.
+`docker compose down` 会保留 `venue-booking_database-data` 卷，预约数据不会丢失。加上 `-v` 会连同数据一起删除。
 
-### Configuration
+### 配置
 
-Docker Compose reads `.env` from the repository root. `.env` is ignored by Git; `.env.example` lists every variable with example values.
+Docker Compose 会读取仓库根目录下的 `.env`。`.env` 已被 Git 忽略；`.env.example` 列出了所有变量和示例值。
 
-| Variable             | Default (example)               | Used by             | Purpose                                                                                                |
-| -------------------- | ------------------------------- | ------------------- | ------------------------------------------------------------------------------------------------------ |
-| `POSTGRES_DB`        | `venue_booking`                 | database, api       | Database name                                                                                          |
-| `POSTGRES_USER`      | `venue`                         | database, api       | Database user                                                                                          |
-| `POSTGRES_PASSWORD`  | `change-me-local-only`          | database, api       | Database password (required, URL-safe characters)                                                      |
-| `FRONTEND_PORT`      | `8080`                          | frontend            | Host port of the web UI (Docker-published ports bypass ufw; `127.0.0.1:8080` keeps the UI on loopback) |
-| `APP_TIME_ZONE`      | `Asia/Shanghai`                 | api                 | Time zone used to reject reservations that start in the past                                           |
-| `DB_SEED_ON_START`   | `true`                          | api                 | Insert demo venues when the venue table is empty                                                       |
-| `IMAGE_TAG`          | `1.0.0`                         | compose             | Tag of the locally built images                                                                        |
-| `POSTGRES_HOST_PORT` | `5432`                          | `compose.dev.yaml`  | Loopback port for PostgreSQL during local development                                                  |
-| `DATABASE_URL`       | `postgres://…@localhost:5432/…` | local `bun run dev` | Connection URL for the API outside Docker                                                              |
+| 变量                 | 示例值                          | 使用者             | 用途                                                                                            |
+| -------------------- | ------------------------------- | ------------------ | ----------------------------------------------------------------------------------------------- |
+| `POSTGRES_DB`        | `venue_booking`                 | database、api      | 数据库名                                                                                        |
+| `POSTGRES_USER`      | `venue`                         | database、api      | 数据库用户                                                                                      |
+| `POSTGRES_PASSWORD`  | `change-me-local-only`          | database、api      | 数据库密码（必填，只用 URL 安全字符）                                                           |
+| `FRONTEND_PORT`      | `8080`                          | frontend           | Web 界面在主机上的端口（Docker 发布的端口会绕过 ufw；设为 `127.0.0.1:8080` 可只绑定在回环地址） |
+| `APP_TIME_ZONE`      | `Asia/Shanghai`                 | api                | 用于判断预约是否已开始的时区                                                                    |
+| `DB_SEED_ON_START`   | `true`                          | api                | 场地表为空时写入演示场地                                                                        |
+| `IMAGE_TAG`          | `1.0.0`                         | compose            | 本地构建镜像的标签                                                                              |
+| `POSTGRES_HOST_PORT` | `5432`                          | `compose.dev.yaml` | 本地开发时 PostgreSQL 的回环地址端口                                                            |
+| `DATABASE_URL`       | `postgres://…@localhost:5432/…` | 本地 `bun run dev` | 在 Docker 外运行 API 时的连接 URL                                                               |
 
-Inside Compose the API receives `DATABASE_URL=postgres://$POSTGRES_USER:$POSTGRES_PASSWORD@database:5432/$POSTGRES_DB`, where `database` is the Compose service name. No password is stored in the source code or in an image.
+在 Compose 中，API 收到的是 `DATABASE_URL=postgres://$POSTGRES_USER:$POSTGRES_PASSWORD@database:5432/$POSTGRES_DB`，其中 `database` 是数据库的服务名。源码和镜像中都不包含密码。
 
-### Images
+### 镜像
 
-Both Dockerfiles use the repository root as build context and a root `.dockerignore` that excludes `node_modules`, build output, `.env` files, Git data, tests, and docs.
+两个 Dockerfile 都以仓库根目录为构建上下文，并共用根目录的 `.dockerignore`，排除 `node_modules`、构建产物、`.env` 文件、Git 数据、测试和文档。
 
-- `deploy/api/Dockerfile`: stage one (`oven/bun:1.4.4-alpine`) installs only the API's workspace dependencies from the lockfile and bundles the API with `bun build` into a single `dist/server.js`. The runtime stage (`node:24.22.1-alpine3.24`) contains just that bundle and the SQL migrations: no source code, `node_modules`, or build tools. It runs as the unprivileged `node` user and listens on port 3000.
-- `deploy/web/Dockerfile`: stage one builds the React app with Vite. The runtime stage (`nginxinc/nginx-unprivileged:1.30.6-alpine3.24`) serves the static files as uid 101 on port 8080, proxies `/api/` to `API_UPSTREAM` (default `http://api:3000`), and falls back to `index.html` for client-side routes. The proxy resolves the API host per request, so a recreated API container is found again.
+- `deploy/api/Dockerfile`：第一阶段（`oven/bun:1.4.4-alpine`）按锁文件只安装 API 所需的依赖，并用 `bun build` 把 API 打包成单个 `dist/server.js`。运行阶段（`node:24.22.1-alpine3.24`）只包含该文件和 SQL 迁移，没有源码、`node_modules` 或构建工具；以非 root 的 `node` 用户运行，监听 3000 端口。
+- `deploy/web/Dockerfile`：第一阶段用 Vite 构建 React 应用。运行阶段（`nginxinc/nginx-unprivileged:1.30.6-alpine3.24`）以 uid 101 在 8080 端口提供静态文件，把 `/api/` 转发到 `API_UPSTREAM`（默认 `http://api:3000`），并把前端路由回退到 `index.html`。代理在每次请求时解析 API 主机名，因此 API 容器重建后仍能连上。
 
-To build an image on its own:
+单独构建镜像：
 
 ```bash
 docker build -f deploy/api/Dockerfile -t venue-booking/api:1.0.0 .
