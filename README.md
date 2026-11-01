@@ -257,24 +257,24 @@ Vite 开发服务器会把 `/api` 转发给 API，与 Docker 中的 nginx 一致
 | `RESERVATION_CONFLICT`  | 409    | 与同一场地已确认的预约时间重叠                                    |
 | `INTERNAL_SERVER_ERROR` | 500    | 服务器意外错误                                                    |
 
-## Data model and booking rules
+## 数据模型与预约规则
 
-`venues`: `id` (identity primary key), `name`, `location`, `capacity` (> 0), `open_time` and `close_time` (`time`, open < close), `status` (`open` | `disabled`), `description`, `created_at`.
+`venues`（场地）：`id`（自增主键）、`name`、`location`、`capacity`（大于 0）、`open_time` 与 `close_time`（`time` 类型，开放早于关闭）、`status`（`open` | `disabled`）、`description`、`created_at`。
 
-`reservations`: `id` (identity primary key), `venue_id` (foreign key to `venues.id`, `ON DELETE RESTRICT`), `booker_name`, `attendee_count` (> 0), `reservation_date` (`date`), `start_time` and `end_time` (`time`, start < end), `purpose`, `status` (`confirmed` | `cancelled`), `created_at`, `cancelled_at`. A check constraint keeps `cancelled_at` set exactly when the status is `cancelled`. An index on `(venue_id, reservation_date)` serves the schedule queries.
+`reservations`（预约）：`id`（自增主键）、`venue_id`（外键，引用 `venues.id`，`ON DELETE RESTRICT`）、`booker_name`、`attendee_count`（大于 0）、`reservation_date`（`date`）、`start_time` 与 `end_time`（`time`，开始早于结束）、`purpose`、`status`（`confirmed` | `cancelled`）、`created_at`、`cancelled_at`。检查约束保证仅当状态为 `cancelled` 时 `cancelled_at` 有值。`(venue_id, reservation_date)` 上的索引用于按日查询。
 
-The schema lives in `apps/api/src/db/schema.ts`. Drizzle migrations in `apps/api/drizzle/` create it and are applied automatically when the API starts.
+表结构定义在 `apps/api/src/db/schema.ts`，由 `apps/api/drizzle/` 中的 Drizzle 迁移创建，API 启动时自动执行。
 
-A reservation is accepted only if the venue exists and is open, the request is well-formed, the range lies within the opening hours, it starts in the future, and the attendees fit the venue's capacity. It must also not overlap any **confirmed** reservation of the same venue. Ranges are half-open, so 09:00 to 10:00 and 10:00 to 11:00 can both be booked.
+只有同时满足以下条件，预约才会被接受：场地存在且开放、请求格式正确、时段在开放时间内、开始时间在未来、人数不超过容量，并且与同一场地的**已确认**预约不重叠。时段为左闭右开区间，因此 09:00 至 10:00 与 10:00 至 11:00 可以同时预约。
 
-The database prevents conflicts atomically, so concurrent requests cannot double-book:
+数据库以原子方式阻止冲突，因此并发请求也不会重复预约：
 
-1. The API validates the venue, time, and capacity, then inserts the reservation. If PostgreSQL rejects the insert with an exclusion violation (SQLSTATE `23P01`), the API returns a 409 that names the conflicting time ranges.
-2. PostgreSQL enforces an exclusion constraint (`EXCLUDE USING gist (venue_id WITH =, tsrange(date + start, date + end) WITH &&) WHERE (status = 'confirmed')`, migration `0001`), which also rejects overlaps from writes that bypass the API.
+1. API 先校验场地、时间和人数，再插入预约。若 PostgreSQL 因排他约束拒绝插入（SQLSTATE `23P01`），API 返回 409，并附带冲突的时间段。
+2. PostgreSQL 的排他约束（`EXCLUDE USING gist (venue_id WITH =, tsrange(date + start, date + end) WITH &&) WHERE (status = 'confirmed')`，迁移 `0001`）即使绕过 API 也会拒绝重叠。
 
-Cancellation is logical: it sets `status = 'cancelled'` and `cancelled_at` but keeps the row as a record. The overlap check and the constraint ignore cancelled reservations, so the time slot can be booked again immediately. Cancelling an already cancelled reservation returns it unchanged (idempotent).
+取消是逻辑取消：把 `status` 设为 `cancelled` 并记录 `cancelled_at`，该行作为记录保留。已取消的预约不参与重叠检查，也不受排他约束限制，所以该时段可以立即重新预约。对已取消的预约再次取消会原样返回（幂等）。
 
-Dates and times are wall-clock values without a time zone. The API uses `APP_TIME_ZONE` (default `Asia/Shanghai`) to decide what "now" is, so the container's own UTC clock does not matter. The frontend validates input with the same Zod schemas as the API for immediate feedback, but the API makes the final decision on every rule.
+日期和时间均为不带时区的当地时间。API 用 `APP_TIME_ZONE`（默认 `Asia/Shanghai`）确定“当前时间”，因此与容器本身使用的 UTC 时钟无关。前端用与 API 相同的 Zod 规则即时校验输入，但所有规则最终都由 API 判定。
 
 ## Tests
 
