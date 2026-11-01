@@ -186,24 +186,24 @@ Vite 开发服务器会把 `/api` 转发给 API，与 Docker 中的 nginx 一致
 | `bun run knip`        | 找出未使用的文件、导出和依赖                |
 | `bun run db:generate` | 修改 `apps/api/src/db/schema.ts` 后生成迁移 |
 
-## API
+## 接口说明
 
-All endpoints use JSON and live under `/api`. The full schema is served at `/api/openapi.json` and browsable at `/api/docs`.
+所有接口都位于 `/api` 下，请求和响应均为 JSON。完整定义见 `/api/openapi.json`，也可在 `/api/docs` 浏览。
 
-| Method | Path                            | Description                        | Success | Errors                        |
-| ------ | ------------------------------- | ---------------------------------- | ------- | ----------------------------- |
-| GET    | `/api/venues`                   | List venues                        | 200     |                               |
-| GET    | `/api/venues/{id}`              | Venue details                      | 200     | 400, 404                      |
-| POST   | `/api/venues`                   | Create a venue                     | 201     | 400                           |
-| GET    | `/api/reservations`             | List reservations (filters below)  | 200     | 400                           |
-| GET    | `/api/reservations/{id}`        | Reservation details                | 200     | 400, 404                      |
-| POST   | `/api/reservations`             | Create a reservation               | 201     | 400, 404, 409                 |
-| POST   | `/api/reservations/{id}/cancel` | Cancel a reservation               | 200     | 400, 404                      |
-| GET    | `/api/health`                   | Liveness and database connectivity | 200     | 503 when the database is down |
+| 方法 | 路径                            | 说明                     | 成功 | 错误               |
+| ---- | ------------------------------- | ------------------------ | ---- | ------------------ |
+| GET  | `/api/venues`                   | 查询场地列表             | 200  |                    |
+| GET  | `/api/venues/{id}`              | 查询场地详情             | 200  | 400、404           |
+| POST | `/api/venues`                   | 新增场地                 | 201  | 400                |
+| GET  | `/api/reservations`             | 查询预约列表（筛选见下） | 200  | 400                |
+| GET  | `/api/reservations/{id}`        | 查询预约详情             | 200  | 400、404           |
+| POST | `/api/reservations`             | 创建预约                 | 201  | 400、404、409      |
+| POST | `/api/reservations/{id}/cancel` | 取消预约                 | 200  | 400、404           |
+| GET  | `/api/health`                   | 存活及数据库连通性检查   | 200  | 数据库不可用时 503 |
 
-`GET /api/reservations` accepts optional query parameters, combined with AND: `venueId`, `date` (exact day), `from` (on or after), `status` (`confirmed` or `cancelled`), and `q` (case-insensitive search in booker name and purpose). Results are sorted by date and start time.
+`GET /api/reservations` 支持以下可选查询参数（同时使用时取交集）：`venueId`、`date`（指定日期）、`from`（该日期及以后）、`status`（`confirmed` 或 `cancelled`）、`q`（在预约人和用途中不区分大小写搜索）。结果按日期和开始时间排序。
 
-Create a venue:
+新增场地：
 
 ```json
 {
@@ -213,25 +213,25 @@ Create a venue:
   "openTime": "08:00",
   "closeTime": "21:00",
   "status": "open",
-  "description": "Optional"
+  "description": "可选"
 }
 ```
 
-Create a reservation (dates are `YYYY-MM-DD`, times are 24-hour `HH:mm`):
+创建预约（日期格式为 `YYYY-MM-DD`，时间为 24 小时制 `HH:mm`）：
 
 ```json
 {
   "venueId": 2,
-  "bookerName": "Robotics Club",
+  "bookerName": "机器人社",
   "attendeeCount": 12,
   "date": "2026-10-30",
   "startTime": "14:00",
   "endTime": "15:30",
-  "purpose": "Weekly build session"
+  "purpose": "每周项目例会"
 }
 ```
 
-Errors share one JSON shape and never include stack traces. Unexpected failures are logged by the API and returned as a generic 500.
+所有错误使用同一种 JSON 格式，不会返回异常堆栈。意外错误由 API 记录日志，并以通用的 500 响应返回。
 
 ```json
 {
@@ -244,18 +244,18 @@ Errors share one JSON shape and never include stack traces. Unexpected failures 
 }
 ```
 
-| Code                    | Status | When                                                                      |
-| ----------------------- | ------ | ------------------------------------------------------------------------- |
-| `BAD_REQUEST`           | 400    | Malformed JSON or invalid fields; `data.issues` lists `{ path, message }` |
-| `VENUE_DISABLED`        | 400    | The venue's status is `disabled`                                          |
-| `OUTSIDE_OPENING_HOURS` | 400    | The time range is not within the venue's opening hours                    |
-| `RESERVATION_IN_PAST`   | 400    | The reservation starts at or before the current time                      |
-| `CAPACITY_EXCEEDED`     | 400    | `attendeeCount` is larger than the venue's capacity                       |
-| `VENUE_NOT_FOUND`       | 404    | The venue does not exist                                                  |
-| `RESERVATION_NOT_FOUND` | 404    | The reservation does not exist                                            |
-| `NOT_FOUND`             | 404    | No such route                                                             |
-| `RESERVATION_CONFLICT`  | 409    | The range overlaps a confirmed reservation of the same venue              |
-| `INTERNAL_SERVER_ERROR` | 500    | Unexpected server error                                                   |
+| 错误码                  | 状态码 | 触发条件                                                          |
+| ----------------------- | ------ | ----------------------------------------------------------------- |
+| `BAD_REQUEST`           | 400    | JSON 格式错误或字段不合法；`data.issues` 给出 `{ path, message }` |
+| `VENUE_DISABLED`        | 400    | 场地状态为 `disabled`                                             |
+| `OUTSIDE_OPENING_HOURS` | 400    | 时段不在场地开放时间内                                            |
+| `RESERVATION_IN_PAST`   | 400    | 开始时间不晚于当前时间                                            |
+| `CAPACITY_EXCEEDED`     | 400    | `attendeeCount` 超过场地容量                                      |
+| `VENUE_NOT_FOUND`       | 404    | 场地不存在                                                        |
+| `RESERVATION_NOT_FOUND` | 404    | 预约不存在                                                        |
+| `NOT_FOUND`             | 404    | 路由不存在                                                        |
+| `RESERVATION_CONFLICT`  | 409    | 与同一场地已确认的预约时间重叠                                    |
+| `INTERNAL_SERVER_ERROR` | 500    | 服务器意外错误                                                    |
 
 ## Data model and booking rules
 
