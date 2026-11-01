@@ -357,11 +357,11 @@ docker volume ls
 
 输出中包含 `venue-booking_database-data`。
 
-## Troubleshooting
+## 常见问题
 
-- **Port 8080 is in use**: set `FRONTEND_PORT` in `.env`, for example `FRONTEND_PORT=8090`.
-- **`set POSTGRES_PASSWORD in .env`**: copy `.env.example` to `.env` first.
-- **API stays unhealthy**: check `docker compose logs api`. A password with characters such as `@` or `/` breaks the connection URL.
-- **Start over with an empty database**: `docker compose down -v`, then `docker compose up -d`.
-- **Port 5432 is in use during development**: set `POSTGRES_HOST_PORT` and the port in `DATABASE_URL` to a free port.
-- **`format:check` fails on Windows for files you did not touch**: the checkout predates `.gitattributes`, so its files still have CRLF line endings. With no uncommitted changes, run `git rm -r --cached -q .` and then `git reset --hard` to check them out again with LF.
+- **8080 端口被占用**：在 `.env` 中设置 `FRONTEND_PORT`，例如 `FRONTEND_PORT=8090`。
+- **提示 `set POSTGRES_PASSWORD in .env`**：先把 `.env.example` 复制为 `.env`。
+- **API 一直不健康**：查看 `docker compose logs api`。密码中含有 `@`、`/` 等字符会破坏连接 URL。
+- **清空数据重新开始**：执行 `docker compose down -v`，再执行 `docker compose up -d`。
+- **开发时 5432 端口被占用**：把 `POSTGRES_HOST_PORT` 和 `DATABASE_URL` 中的端口改成空闲端口。
+- **Windows 上 `format:check` 报告未修改过的文件**：该检出早于 `.gitattributes`，文件仍是 CRLF 换行。在没有未提交改动时，先执行 `git rm -r --cached -q .`，再执行 `git reset --hard`，以 LF 重新检出文件。
