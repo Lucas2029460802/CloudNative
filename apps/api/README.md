@@ -1,10 +1,10 @@
 # @venue/api
 
-Hono + oRPC REST API for the venue booking system, backed by PostgreSQL through Drizzle ORM.
+场地预约系统的 Hono + oRPC REST API，通过 Drizzle ORM 使用 PostgreSQL。
 
-- `src/server.ts` reads the environment, applies migrations, seeds demo venues and starts listening on `PORT` (3000).
-- `src/app.ts` mounts the oRPC handler under `/api`, the health check, the API reference (`/api/docs`) and error handling.
-- `src/routers/` implements the contract from `@venue/contracts`; booking rules live in `routers/reservations.ts`.
-- `src/db/` holds the Drizzle schema, connection, migration runner and seed data; SQL migrations are in `drizzle/`.
+- `src/server.ts` 读取环境变量、执行迁移、写入演示场地，并在 `PORT`（3000）上监听。
+- `src/app.ts` 在 `/api` 下挂载 oRPC 处理函数、健康检查、接口文档（`/api/docs`）和错误处理。
+- `src/routers/` 实现 `@venue/contracts` 中的契约；预约规则在 `routers/reservations.ts`。
+- `src/db/` 包含 Drizzle 表结构、连接、迁移执行和种子数据；SQL 迁移在 `drizzle/`。
 
-See the [root README](../../README.md) for setup, configuration and the API reference.
+安装、配置和接口说明见[仓库首页](../../README.md)。
