@@ -1,81 +1,81 @@
-# Venue Booking System
+# 场地预约系统
 
-[English](README.md) | [简体中文](README.zh.md)
+[English](README.en.md) | [简体中文](README.md)
 
-A full-stack venue booking system developed for _CS30074 Cloud-Native Software Technology, Lab 1_, at Fudan University.
+复旦大学《CS30074 云原生软件技术》实验一的全栈场地预约系统。
 
-People pick a day, see when each campus venue is free, book a time slot, and get a reservation number they can use to look up or cancel the booking. The frontend, the Web API, and PostgreSQL each run in their own container under Docker Compose.
+用户选择日期，查看各场地何时空闲，预约时段，并获得预约编号，之后可凭编号查询或取消预约。前端、Web API 和 PostgreSQL 分别运行在独立容器中，由 Docker Compose 编排。
 
-- Booking board: every venue's day on one time axis, with booked, closed, and past time marked
-- Venue page: click a start and an end slot (or pick times), enter who is booking and why, and book
-- Confirmation slip with the reservation number; cancellation with confirmation
-- Reservation list with search by name or purpose and filters by status, venue, and date
-- Add venues; disabled venues stay visible but cannot be booked
-- English and Simplified Chinese, light and dark themes, works on phones
+- 预约看板：所有场地的当天安排排在同一时间轴上，标出已预约、未开放和已过去的时间
+- 场地页面：先点选开始时段再点选结束时段（或直接选择时间），填写预约人和用途后提交
+- 预约成功后显示带预约编号的确认单；取消前需要再次确认
+- 预约记录：按预约人或用途搜索，并可按状态、场地和日期筛选
+- 新增场地；停用的场地仍会显示，但不能预约
+- 支持英文和简体中文、浅色和深色主题，适配手机
 
-## Architecture
+## 系统架构
 
 ```text
-Browser ──HTTP :8080──▶ frontend (nginx)          static React build
-                          │  /api/* reverse proxy
-                          ▼
-                        api (Node.js :3000)        Hono + oRPC REST API, validation, business rules
-                          │  SQL
-                          ▼
-                        database (PostgreSQL :5432) venues, reservations (named volume)
+浏览器 ──HTTP :8080──▶ frontend (nginx)            React 静态资源
+                         │  /api/* 反向代理
+                         ▼
+                       api (Node.js :3000)          Hono + oRPC REST API、参数校验、业务规则
+                         │  SQL
+                         ▼
+                       database (PostgreSQL :5432)  场地与预约数据（命名卷）
 ```
 
-| Container  | Image                          | Responsibility                                                  | Networks                      | Published port |
-| ---------- | ------------------------------ | --------------------------------------------------------------- | ----------------------------- | -------------- |
-| `frontend` | `venue-booking/frontend:1.0.0` | Serves the UI and proxies `/api` to the API                     | `frontend-net`                | `8080` (host)  |
-| `api`      | `venue-booking/api:1.0.0`      | REST API, validation, conflict checks, migrations and seed data | `frontend-net`, `backend-net` | none           |
-| `database` | `postgres:18.6-alpine3.24`     | Persists venues and reservations in the `database-data` volume  | `backend-net`                 | none           |
+| 容器       | 镜像                           | 职责                                         | 网络                          | 对外端口       |
+| ---------- | ------------------------------ | -------------------------------------------- | ----------------------------- | -------------- |
+| `frontend` | `venue-booking/frontend:1.0.0` | 提供界面，并把 `/api` 请求转发给 API         | `frontend-net`                | `8080`（主机） |
+| `api`      | `venue-booking/api:1.0.0`      | REST API、参数校验、冲突检查、迁移与种子数据 | `frontend-net`、`backend-net` | 无             |
+| `database` | `postgres:18.6-alpine3.24`     | 将场地和预约数据持久化到 `database-data` 卷  | `backend-net`                 | 无             |
 
-The browser only talks to the frontend origin, so no CORS setup is needed and the API base URL needs no build-time configuration. The frontend container is not attached to `backend-net`: it cannot resolve or reach the database.
+浏览器只访问前端所在的源，因此无需配置 CORS，也无需在构建时指定 API 地址。`frontend` 容器没有接入 `backend-net`，既解析不到也连不上数据库。
 
-## Tech stack
+## 技术栈
 
-| Layer                | Technologies                                   |
-| -------------------- | ---------------------------------------------- |
-| Frontend             | React 19, TypeScript, Vite 8                   |
-| Routing & data       | TanStack Router, TanStack Query, TanStack Form |
-| UI & styling         | shadcn/ui, Base UI, Tailwind CSS v4            |
-| Internationalization | i18next, react-i18next                         |
-| Backend              | Node.js, Hono, oRPC, Zod                       |
-| Database             | PostgreSQL 18, Drizzle ORM                     |
-| Package management   | Bun Workspaces                                 |
-| Code quality         | Oxlint, Oxfmt, Knip                            |
-| Testing              | Vitest, Playwright, axe-core, Lighthouse CI    |
-| Infrastructure       | Docker, Docker Compose, Nginx                  |
+| 层次       | 技术                                           |
+| ---------- | ---------------------------------------------- |
+| 前端       | React 19、TypeScript、Vite 8                   |
+| 路由与数据 | TanStack Router、TanStack Query、TanStack Form |
+| UI 与样式  | shadcn/ui、Base UI、Tailwind CSS v4            |
+| 国际化     | i18next、react-i18next                         |
+| 后端       | Node.js、Hono、oRPC、Zod                       |
+| 数据库     | PostgreSQL 18、Drizzle ORM                     |
+| 包管理     | Bun Workspaces                                 |
+| 代码质量   | Oxlint、Oxfmt、Knip                            |
+| 测试       | Vitest、Playwright、axe-core、Lighthouse CI    |
+| 基础设施   | Docker、Docker Compose、Nginx                  |
 
-## Repository structure
+## 目录结构
 
 ```text
 .
 ├── apps/
-│   ├── api/                  # Hono + oRPC backend
-│   │   ├── drizzle/          # SQL migrations (generated + exclusion constraint)
+│   ├── api/                  # Hono + oRPC 后端
+│   │   ├── drizzle/          # SQL 迁移文件（自动生成 + 排他约束）
 │   │   └── src/
-│   │       ├── db/           # Drizzle schema, connection, migrations, seed data
-│   │       ├── routers/      # Endpoint handlers and business rules
-│   │       ├── app.ts        # HTTP app: /api routes, health check, error handling
-│   │       └── server.ts     # Entry point: config, migrate, seed, listen
-│   └── web/                  # React frontend
+│   │       ├── db/           # Drizzle 表结构、数据库连接、迁移、种子数据
+│   │       ├── routers/      # 接口处理与业务规则
+│   │       ├── app.ts        # HTTP 应用：/api 路由、健康检查、错误处理
+│   │       └── server.ts     # 入口：读取配置、迁移、写入种子数据、启动监听
+│   └── web/                  # React 前端
 │       └── src/
-│           ├── routes/       # File-based routes (TanStack Router)
-│           ├── features/     # Venue board, booking, reservations
-│           ├── components/   # Shared UI (shadcn/ui components in ui/)
-│           ├── locales/      # English and Simplified Chinese strings
-│           └── lib/          # API client, time and format helpers, i18n
-├── packages/contracts/       # API contract and Zod schemas shared by api and web
+│           ├── routes/       # 基于文件的路由（TanStack Router）
+│           ├── features/     # 预约看板、预约流程、预约记录
+│           ├── components/   # 通用组件（shadcn/ui 组件位于 ui/）
+│           ├── locales/      # 英文与简体中文文案
+│           └── lib/          # API 客户端、时间与格式化工具、i18n
+├── packages/contracts/       # api 与 web 共用的接口契约和 Zod 校验规则
 ├── deploy/
-│   ├── api/Dockerfile        # Multi-stage API image
-│   └── web/                  # Multi-stage frontend image + nginx config template
-├── tests/                    # unit/, integration/ (Vitest), e2e/ (Playwright)
-├── compose.yaml              # frontend, api, database
-├── compose.dev.yaml          # Development override: publishes PostgreSQL on 127.0.0.1
-├── .env.example              # Configuration template
-└── docs/lab-1.md             # Lab specification
+│   ├── api/Dockerfile        # API 多阶段构建镜像
+│   └── web/                  # 前端多阶段构建镜像 + nginx 配置模板
+├── tests/                    # unit/、integration/（Vitest），e2e/（Playwright）
+├── compose.yaml              # frontend、api、database
+├── compose.dev.yaml          # 开发用覆盖文件：把 PostgreSQL 发布到 127.0.0.1
+├── .env.example              # 配置模板
+└── docs/lab-1.md             # 实验要求
 ```
 
 ## Run with Docker Compose
