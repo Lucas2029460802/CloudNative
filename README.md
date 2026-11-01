@@ -151,9 +151,9 @@ docker build -f deploy/api/Dockerfile -t venue-booking/api:1.0.0 .
 docker build -f deploy/web/Dockerfile -t venue-booking/frontend:1.0.0 .
 ```
 
-## Local development
+## 本地开发
 
-Prerequisites: [Bun](https://bun.sh) 1.4, Node.js 24, Docker.
+前置条件：[Bun](https://bun.sh) 1.4、Node.js 24、Docker。
 
 ```bash
 bun install
@@ -163,28 +163,28 @@ bun install
 cp .env.example .env
 ```
 
-Start only PostgreSQL, published on `127.0.0.1:5432` by the development override:
+只启动 PostgreSQL（开发覆盖文件会把它发布到 `127.0.0.1:5432`）：
 
 ```bash
 bun run dev:db
 ```
 
-Start the API (<http://localhost:3000>) and the web app (<http://localhost:5173>) with hot reload:
+启动带热更新的 API（<http://localhost:3000>）和 Web 应用（<http://localhost:5173>）：
 
 ```bash
 bun run dev
 ```
 
-The Vite dev server proxies `/api` to the API, just like nginx does in Docker. The API loads `.env` from the repository root and runs migrations and seeding on start, same as in the container. The development database is the same `database-data` volume the full stack uses.
+Vite 开发服务器会把 `/api` 转发给 API，与 Docker 中的 nginx 一致。API 从仓库根目录读取 `.env`，启动时同样会执行迁移和写入种子数据。开发用数据库与完整部署共用同一个 `database-data` 卷。
 
-| Command               | What it does                                                    |
-| --------------------- | --------------------------------------------------------------- |
-| `bun run build`       | Build the API bundle and the web app                            |
-| `bun run typecheck`   | Type-check all workspaces and the tests                         |
-| `bun run lint`        | Lint with Oxlint                                                |
-| `bun run format`      | Format with Oxfmt (`format:check` to verify only)               |
-| `bun run knip`        | Report unused files, exports, and dependencies                  |
-| `bun run db:generate` | Generate a migration after changing `apps/api/src/db/schema.ts` |
+| 命令                  | 作用                                        |
+| --------------------- | ------------------------------------------- |
+| `bun run build`       | 构建 API 打包文件和 Web 应用                |
+| `bun run typecheck`   | 对所有工作区和测试做类型检查                |
+| `bun run lint`        | 使用 Oxlint 检查代码                        |
+| `bun run format`      | 使用 Oxfmt 格式化（`format:check` 只检查）  |
+| `bun run knip`        | 找出未使用的文件、导出和依赖                |
+| `bun run db:generate` | 修改 `apps/api/src/db/schema.ts` 后生成迁移 |
 
 ## API
 
