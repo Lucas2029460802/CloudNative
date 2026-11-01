@@ -13,6 +13,22 @@
 - 新增场地；停用的场地仍会显示，但不能预约
 - 支持英文和简体中文、浅色和深色主题，适配手机
 
+## 快速开始
+
+需要 Docker 与 Compose v2（Windows 和 macOS 安装 Docker Desktop 即可）。
+
+```bash
+cp .env.example .env
+```
+
+编辑 `.env`，把 `POSTGRES_PASSWORD` 改成只含字母、数字、`-`、`_`、`.` 的密码，然后：
+
+```bash
+docker compose up --build -d
+```
+
+约 20 秒后打开 <http://localhost:8080>。变量、镜像和常用命令见下方「使用 Docker Compose 运行」。
+
 ## 系统架构
 
 ```text
