@@ -13,9 +13,9 @@ for (const width of [375, 768, 1440]) {
       }, testInfo) => {
         await page.setViewportSize({ width, height: 900 })
         await page.addInitScript(
-          ({ language, theme }) => {
-            localStorage.setItem("language", language)
-            localStorage.setItem("theme", theme)
+          ({ language: savedLanguage, theme: savedTheme }) => {
+            localStorage.setItem("language", savedLanguage)
+            localStorage.setItem("theme", savedTheme)
           },
           { language, theme }
         )
