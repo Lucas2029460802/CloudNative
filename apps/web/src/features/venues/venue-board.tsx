@@ -10,9 +10,12 @@ import {
 } from "@/features/venues/day-timeline"
 import { VenueDisabledBadge, VenueMeta } from "@/features/venues/venue-meta"
 import { useScheduleNow } from "@/hooks/use-minutes-now"
+import { findAvailableRange } from "@/lib/availability"
 import { formatDate, formatDuration } from "@/lib/format"
 import { freeMinutes, toMinutes } from "@/lib/time"
 import { cn } from "@/lib/utils"
+
+export type ScheduleState = "ready" | "loading" | "error"
 
 /** Every venue's day on one shared hour axis, so free time can be compared at a glance. */
 export function VenueBoard({
@@ -20,10 +23,11 @@ export function VenueBoard({
   bookings,
   date,
   today,
-  loading = false,
+  scheduleState,
+  duration,
 }: {
-  /** True while the previous day's bookings are shown as a placeholder. */
-  loading?: boolean
+  scheduleState: ScheduleState
+  duration: number
   venues: Venue[]
   bookings: Reservation[]
   date: string
@@ -47,11 +51,8 @@ export function VenueBoard({
 
   return (
     <div
-      aria-busy={loading}
-      className={cn(
-        "flex flex-col gap-3 transition-opacity",
-        loading && "opacity-50"
-      )}
+      aria-busy={scheduleState === "loading"}
+      className="flex flex-col gap-4 rounded-xl border bg-card p-4 sm:p-5"
     >
       <div className="hidden gap-6 px-3 md:grid md:grid-cols-[17rem_1fr]">
         <span />
@@ -67,10 +68,12 @@ export function VenueBoard({
             date={date}
             today={today}
             now={now}
+            scheduleState={scheduleState}
+            duration={duration}
           />
         ))}
       </ul>
-      <BoardLegend />
+      {scheduleState === "ready" && <BoardLegend />}
     </div>
   )
 }
@@ -82,6 +85,8 @@ function VenueRow({
   date,
   today,
   now,
+  scheduleState,
+  duration,
 }: {
   venue: Venue
   bookings: Reservation[]
@@ -89,24 +94,47 @@ function VenueRow({
   date: string
   today: string
   now?: number
+  scheduleState: ScheduleState
+  duration: number
 }) {
   const { t } = useTranslation()
   const disabled = venue.status === "disabled"
+  const ready = scheduleState === "ready"
+  const available =
+    ready && !disabled
+      ? findAvailableRange(
+          venue.openTime,
+          venue.closeTime,
+          bookings,
+          duration,
+          now
+        )
+      : null
   const free = freeMinutes(venue.openTime, venue.closeTime, bookings, now)
-  const summary = disabled
-    ? t("board.notBookable")
-    : now !== undefined && now >= toMinutes(venue.closeTime)
-      ? t("board.dayOver")
-      : free === 0
-        ? t("board.fullyBooked")
-        : t("board.free", { duration: formatDuration(free) })
+  const summary = !ready
+    ? t(
+        scheduleState === "loading"
+          ? "board.scheduleLoading"
+          : "board.scheduleUnknown"
+      )
+    : disabled
+      ? t("board.notBookable")
+      : now !== undefined && now >= toMinutes(venue.closeTime)
+        ? t("board.dayOver")
+        : free === 0
+          ? t("board.fullyBooked")
+          : t("board.free", { duration: formatDuration(free) })
 
   return (
     <li>
       <Link
         to="/venues/$venueId"
         params={{ venueId: String(venue.id) }}
-        search={{ date: date === today ? undefined : date }}
+        search={{
+          date: date === today ? undefined : date,
+          start: available?.startTime,
+          end: available?.endTime,
+        }}
         className="group -mx-3 grid gap-3 rounded-lg px-3 py-4 transition-colors outline-none hover:bg-card focus-visible:ring-3 focus-visible:ring-ring/50 md:grid-cols-[17rem_1fr] md:items-center md:gap-6"
       >
         <div className="flex min-w-0 flex-col gap-1.5">
@@ -119,24 +147,32 @@ function VenueRow({
           <VenueMeta venue={venue} />
         </div>
         <div className="flex min-w-0 flex-col gap-1.5">
-          <DayTimeline
-            axis={axis}
-            openTime={venue.openTime}
-            closeTime={venue.closeTime}
-            bookings={bookings}
-            disabled={disabled}
-            now={now}
-            label={t("board.timelineLabel", {
-              venue: venue.name,
-              date: formatDate(date, "long"),
-              hours: t("common.hours", {
-                open: venue.openTime,
-                close: venue.closeTime,
-              }),
-              bookings: t("board.bookings", { count: bookings.length }),
-            })}
-          />
-          <TimelineAxis axis={axis} every={3} className="md:hidden" />
+          {ready ? (
+            <>
+              <DayTimeline
+                axis={axis}
+                openTime={venue.openTime}
+                closeTime={venue.closeTime}
+                bookings={bookings}
+                disabled={disabled}
+                now={now}
+                label={t("board.timelineLabel", {
+                  venue: venue.name,
+                  date: formatDate(date, "long"),
+                  hours: t("common.hours", {
+                    open: venue.openTime,
+                    close: venue.closeTime,
+                  }),
+                  bookings: t("board.bookings", { count: bookings.length }),
+                })}
+              />
+              <TimelineAxis axis={axis} every={3} className="md:hidden" />
+            </>
+          ) : scheduleState === "loading" ? (
+            <Skeleton className="h-8 w-full" />
+          ) : (
+            <div className="h-8 rounded-md border border-dashed" />
+          )}
           <p
             className={cn(
               "text-sm font-medium",
@@ -145,13 +181,24 @@ function VenueRow({
           >
             {summary}
           </p>
+          {available && (
+            <p className="text-sm font-medium">
+              {t("board.nextAvailable")}:{" "}
+              <span className="tabular-nums">
+                {t("common.timeRange", {
+                  start: available.startTime,
+                  end: available.endTime,
+                })}
+              </span>
+            </p>
+          )}
         </div>
       </Link>
     </li>
   )
 }
 
-function BoardLegend() {
+export function BoardLegend() {
   const { t } = useTranslation()
   const swatch = "h-3 w-5 shrink-0 rounded-[3px]"
   return (
@@ -168,25 +215,6 @@ function BoardLegend() {
         <span className={cn(swatch, "bg-hatch ring-1 ring-border")} />
         {t("board.legendClosed")}
       </li>
-    </ul>
-  )
-}
-
-export function VenueBoardSkeleton() {
-  return (
-    <ul className="min-h-[60svh] divide-y border-y" aria-hidden="true">
-      {[0, 1, 2, 3, 4, 5].map((row) => (
-        <li
-          key={row}
-          className="grid gap-3 py-4 md:grid-cols-[17rem_1fr] md:items-center md:gap-6"
-        >
-          <div className="flex flex-col gap-2">
-            <Skeleton className="h-6 w-48" />
-            <Skeleton className="h-4 w-64" />
-          </div>
-          <Skeleton className="h-8 w-full" />
-        </li>
-      ))}
     </ul>
   )
 }

@@ -14,6 +14,7 @@ import { Spinner } from "@/components/ui/spinner"
 import { toast } from "@/components/ui/toast"
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group"
 import { describeError, orpc } from "@/lib/api"
+import { focusFirstInvalid } from "@/lib/form-focus"
 import { fromMinutes } from "@/lib/time"
 
 const errorKeys = {
@@ -88,7 +89,8 @@ export function VenueForm() {
         noValidate
         onSubmit={(event) => {
           event.preventDefault()
-          void form.handleSubmit()
+          const element = event.currentTarget
+          void form.handleSubmit().then(() => focusFirstInvalid(element))
         }}
         className="flex flex-col gap-(--card-spacing)"
       >

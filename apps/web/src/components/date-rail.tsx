@@ -15,9 +15,9 @@ import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group"
 import { formatDate } from "@/lib/format"
 import { addDaysISO, todayISO, toISODate } from "@/lib/time"
 
-const RAIL_DAYS = 14
+const RAIL_DAYS = 7
 
-/** The next two weeks as one-tap chips, plus a calendar for any later date. */
+/** The next week as one-tap chips, plus a calendar for any later date. */
 export function DateRail({
   value,
   onChange,
@@ -67,7 +67,7 @@ export function DateRail({
         onValueChange={([date]) => {
           if (date) onChange(date)
         }}
-        className="relative w-full min-w-0 [scrollbar-width:thin] [scrollbar-color:var(--border)_transparent] overflow-x-auto p-0.5 pb-1.5"
+        className="relative w-full min-w-0 flex-1 [scrollbar-width:thin] [scrollbar-color:var(--border)_transparent] overflow-x-auto p-0.5 pb-1.5"
       >
         {days.map((date, index) => (
           <ToggleGroupItem
@@ -88,7 +88,7 @@ export function DateRail({
           render={
             <Button
               variant={isRailDay ? "outline" : "default"}
-              className="shrink-0"
+              className="min-h-11 shrink-0 sm:min-h-9"
             />
           }
         >

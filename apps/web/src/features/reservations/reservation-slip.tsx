@@ -1,10 +1,13 @@
 import { Link } from "@tanstack/react-router"
 import type { Reservation } from "@venue/contracts"
-import type { ReactNode } from "react"
+import { CopyIcon, LinkIcon } from "lucide-react"
+import { useEffect, useRef, useState, type ReactNode } from "react"
 import { useTranslation } from "react-i18next"
 
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
+import { Input } from "@/components/ui/input"
+import { Label } from "@/components/ui/label"
 import { CancelReservationButton } from "@/features/reservations/cancel-reservation-button"
 import { formatDate, formatDuration, formatTimestamp } from "@/lib/format"
 import { durationMinutes } from "@/lib/time"
@@ -31,6 +34,40 @@ function Detail({
 export function ReservationSlip({ reservation }: { reservation: Reservation }) {
   const { t } = useTranslation()
   const cancelled = reservation.status === "cancelled"
+  const [copying, setCopying] = useState(false)
+  const [copyResult, setCopyResult] = useState<{
+    target: "number" | "link"
+    failed: boolean
+    value: string
+  } | null>(null)
+  const manualCopyRef = useRef<HTMLInputElement>(null)
+
+  useEffect(() => {
+    if (!copyResult?.failed) return
+    manualCopyRef.current?.focus()
+    manualCopyRef.current?.select()
+  }, [copyResult])
+
+  async function copy(target: "number" | "link") {
+    // Build from the canonical path: created/back query fields belong only to
+    // this visit and must never be embedded in a saved reservation link.
+    const value =
+      target === "number"
+        ? String(reservation.id)
+        : new URL(`/reservations/${reservation.id}`, location.origin).href
+    setCopying(true)
+    setCopyResult(null)
+    try {
+      if (!navigator.clipboard?.writeText)
+        throw new Error("Clipboard unavailable")
+      await navigator.clipboard.writeText(value)
+      setCopyResult({ target, failed: false, value })
+    } catch {
+      setCopyResult({ target, failed: true, value })
+    } finally {
+      setCopying(false)
+    }
+  }
 
   return (
     <article
@@ -46,10 +83,69 @@ export function ReservationSlip({ reservation }: { reservation: Reservation }) {
         </Badge>
       </header>
 
+      <div className="flex flex-col gap-3 border-b px-6 py-4">
+        <div className="flex flex-wrap gap-2" aria-busy={copying}>
+          <Button
+            variant="outline"
+            className="min-h-11"
+            disabled={copying}
+            onClick={() => void copy("number")}
+          >
+            <CopyIcon aria-hidden="true" data-icon="inline-start" />
+            {t("reservation.copyNumber")}
+          </Button>
+          <Button
+            variant="outline"
+            className="min-h-11"
+            disabled={copying}
+            onClick={() => void copy("link")}
+          >
+            <LinkIcon aria-hidden="true" data-icon="inline-start" />
+            {t("reservation.copyLink")}
+          </Button>
+        </div>
+        {copyResult && (
+          <div className="flex flex-col gap-2">
+            <p
+              id="copy-status"
+              role={copyResult.failed ? "alert" : "status"}
+              className={cn(
+                "text-sm",
+                copyResult.failed ? "text-destructive" : "text-muted-foreground"
+              )}
+            >
+              {copyResult.failed
+                ? t("reservation.copyFailed")
+                : t(
+                    copyResult.target === "number"
+                      ? "reservation.copiedNumber"
+                      : "reservation.copiedLink"
+                  )}
+            </p>
+            {copyResult.failed && (
+              <>
+                <Label htmlFor="manual-reservation-copy">
+                  {t("reservation.manualCopy")}
+                </Label>
+                <Input
+                  ref={manualCopyRef}
+                  id="manual-reservation-copy"
+                  readOnly
+                  value={copyResult.value}
+                  aria-describedby="copy-status"
+                  onFocus={(event) => event.target.select()}
+                  className="h-11"
+                />
+              </>
+            )}
+          </div>
+        )}
+      </div>
+
       <div className="flex flex-col gap-1 px-6 pt-6 pb-5">
         <p
           className={cn(
-            "font-display text-5xl tabular-nums sm:text-6xl",
+            "font-display text-3xl tabular-nums sm:text-4xl",
             cancelled && "text-muted-foreground line-through decoration-2"
           )}
         >
@@ -97,7 +193,7 @@ export function ReservationSlip({ reservation }: { reservation: Reservation }) {
         )}
       </dl>
 
-      <footer className="flex flex-wrap gap-3 border-t bg-muted/50 px-6 py-4">
+      <footer className="flex flex-wrap gap-3 border-t bg-muted/50 px-6 py-4 [&_a]:min-h-11 [&_button]:min-h-11">
         {!cancelled && <CancelReservationButton reservation={reservation} />}
         <Button
           variant={cancelled ? "default" : "ghost"}

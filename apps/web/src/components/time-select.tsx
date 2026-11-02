@@ -13,6 +13,7 @@ export function TimeSelect({
   value,
   options,
   invalid,
+  describedBy,
   onChange,
   isOptionDisabled,
 }: {
@@ -20,6 +21,7 @@ export function TimeSelect({
   value: string
   options: string[]
   invalid: boolean
+  describedBy?: string
   onChange: (value: string) => void
   /** Shown, but grayed out and not choosable. */
   isOptionDisabled?: (time: string) => boolean
@@ -37,6 +39,7 @@ export function TimeSelect({
       <SelectTrigger
         id={id}
         aria-invalid={invalid}
+        aria-describedby={describedBy}
         className="w-full tabular-nums"
       >
         <SelectValue />

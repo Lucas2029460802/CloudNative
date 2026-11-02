@@ -58,7 +58,7 @@
  * chalk for text on the board, and chalk yellow reserved for the visitor's own selection.
  */
 :root {
-  --background: #f2f4ef;
+  --background: #f4f6f2;
   --foreground: #15302a;
   --card: #ffffff;
   --card-foreground: #15302a;
@@ -76,7 +76,7 @@
   --border: #d4dbd3;
   --input: #c4cec3;
   --ring: #3d7a68;
-  --radius: 0.5rem;
+  --radius: 0.75rem;
   --board: #1e463c;
   --board-foreground: #f4f6f1;
   --signal: #f2c14e;
@@ -117,10 +117,10 @@
 /* Condensed signage-style headings. CJK fallback fonts ignore font-stretch. */
 @utility font-display {
   font-family: var(--font-heading);
-  font-stretch: 78%;
+  font-stretch: 90%;
   font-weight: 680;
-  letter-spacing: -0.012em;
-  line-height: 1.05;
+  letter-spacing: -0.025em;
+  line-height: 1.15;
 }
 
 /* Diagonal hatching marks time that cannot be booked (closed or already past). */
@@ -139,6 +139,7 @@
   html {
     @apply font-sans;
     -webkit-text-size-adjust: 100%;
+    scroll-padding-block: 1.5rem 7rem;
   }
   body {
     @apply bg-background text-foreground antialiased;
@@ -147,6 +148,24 @@
   /* Chinese text reads better with more generous leading. */
   :lang(zh-CN) body {
     line-height: 1.65;
+  }
+}
+
+/* Touch controls remain comfortable without making the desktop UI oversized. */
+@media (max-width: 639px) {
+  [data-slot="button"],
+  [data-slot="select-trigger"],
+  [data-slot="toggle-group-item"],
+  [data-slot="input"] {
+    min-height: 2.75rem;
+  }
+
+  [data-slot="input-group"] {
+    min-height: 2.875rem;
+  }
+
+  [data-slot="input-group-control"] {
+    min-height: 2.75rem;
   }
 }
 

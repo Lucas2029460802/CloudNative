@@ -36,6 +36,7 @@ export function SlotPicker({
 }) {
   const { t } = useTranslation()
   const [anchor, setAnchor] = useState<TimeRange | null>(null)
+  const [blockedSelection, setBlockedSelection] = useState(false)
   const slots = daySlots(openTime, closeTime)
   const open = toMinutes(openTime)
   // The anchor only counts while the selection is still the single slot it created.
@@ -61,16 +62,22 @@ export function SlotPicker({
 
   function pick(slot: TimeRange) {
     if (!pending) {
+      setBlockedSelection(false)
       setAnchor(slot)
       onChange(slot)
       return
     }
-    setAnchor(null)
-    onChange(
+    const next =
       toMinutes(slot.startTime) >= toMinutes(pending.startTime)
         ? { startTime: pending.startTime, endTime: slot.endTime }
         : { startTime: slot.startTime, endTime: pending.endTime }
-    )
+    if (bookings.some((booking) => overlaps(booking, next))) {
+      setBlockedSelection(true)
+      return
+    }
+    setBlockedSelection(false)
+    setAnchor(null)
+    onChange(next)
   }
 
   const stateLabel = {
@@ -82,7 +89,11 @@ export function SlotPicker({
   return (
     <div className="flex flex-col gap-3">
       <p aria-live="polite" className="text-sm text-muted-foreground">
-        {pending ? t("venue.chooseEndHint") : t("venue.chooseTimeHint")}
+        {blockedSelection && pending
+          ? t("venue.continuousHint")
+          : pending
+            ? t("venue.chooseEndHint")
+            : t("venue.chooseTimeHint")}
       </p>
       <div className="flex [--slot-h:2rem]">
         <ol aria-hidden="true" className="relative w-12 shrink-0">

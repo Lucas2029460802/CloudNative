@@ -12,11 +12,11 @@ import { BookingSection } from "@/features/reservations/booking-section"
 import { VenueDisabledBadge, VenueMeta } from "@/features/venues/venue-meta"
 import { useDocumentTitle } from "@/hooks/use-document-title"
 import { isNotFound, orpc } from "@/lib/api"
-import { dateSearchSchema } from "@/lib/search"
+import { bookingSearchSchema } from "@/lib/search"
 import { todayISO } from "@/lib/time"
 
 export const Route = createFileRoute("/venues/$venueId")({
-  validateSearch: dateSearchSchema,
+  validateSearch: bookingSearchSchema,
   component: VenuePage,
 })
 
@@ -25,7 +25,8 @@ function VenuePage() {
   const navigate = Route.useNavigate()
   const { venueId } = Route.useParams()
   const today = todayISO()
-  const date = Route.useSearch().date ?? today
+  const search = Route.useSearch()
+  const date = search.date ?? today
   const id = IdSchema.safeParse(venueId).data
 
   // Coming from the board, the venue is already in the cached list: show it at once.
@@ -64,7 +65,7 @@ function VenuePage() {
 
   return (
     <div className="flex flex-col gap-8">
-      <div className="flex flex-col gap-4">
+      <div className="flex flex-col gap-4 rounded-xl border bg-card p-5 sm:p-6">
         <Button
           variant="ghost"
           size="sm"
@@ -76,7 +77,7 @@ function VenuePage() {
           {t("venue.back")}
         </Button>
         <div className="flex flex-wrap items-center gap-3">
-          <h1 className="font-display text-4xl sm:text-5xl">
+          <h1 className="font-display text-3xl sm:text-4xl">
             {venue.data.name}
           </h1>
           {disabled && <VenueDisabledBadge />}
@@ -97,8 +98,14 @@ function VenuePage() {
         </Alert>
       ) : (
         <BookingSection
+          key={venue.data.id}
           venue={venue.data}
           date={date}
+          initialRange={
+            search.start && search.end
+              ? { startTime: search.start, endTime: search.end }
+              : undefined
+          }
           onDateChange={(next) =>
             void navigate({
               search: { date: next === today ? undefined : next },

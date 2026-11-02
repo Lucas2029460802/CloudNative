@@ -15,14 +15,23 @@ import {
 } from "@/components/ui/empty"
 import { Skeleton } from "@/components/ui/skeleton"
 import { CancelReservationButton } from "@/features/reservations/cancel-reservation-button"
+import type { ReservationSearch } from "@/features/reservations/reservation-navigation"
 import { formatDate, formatDuration } from "@/lib/format"
 import { durationMinutes } from "@/lib/time"
 import { cn } from "@/lib/utils"
 
 export function ReservationList({
   reservations,
+  search,
+  filtered = false,
+  refreshing = false,
+  onClear,
 }: {
   reservations: Reservation[]
+  search?: ReservationSearch
+  filtered?: boolean
+  refreshing?: boolean
+  onClear?: () => void
 }) {
   const { t } = useTranslation()
 
@@ -33,10 +42,25 @@ export function ReservationList({
           <EmptyMedia variant="icon">
             <CalendarXIcon />
           </EmptyMedia>
-          <EmptyTitle>{t("reservations.emptyTitle")}</EmptyTitle>
-          <EmptyDescription>{t("reservations.emptyBody")}</EmptyDescription>
+          <EmptyTitle>
+            {t(
+              filtered
+                ? "reservations.emptyTitle"
+                : "reservations.noRecordsTitle"
+            )}
+          </EmptyTitle>
+          <EmptyDescription>
+            {t(
+              filtered ? "reservations.emptyBody" : "reservations.noRecordsBody"
+            )}
+          </EmptyDescription>
         </EmptyHeader>
         <EmptyContent>
+          {filtered && onClear && (
+            <Button variant="outline" onClick={onClear}>
+              {t("reservations.clearFilters")}
+            </Button>
+          )}
           <Button render={<Link to="/" />} nativeButton={false}>
             {t("reservations.emptyAction")}
           </Button>
@@ -50,8 +74,13 @@ export function ReservationList({
 
   return (
     <div className="flex flex-col gap-8">
-      <p aria-live="polite" className="text-sm text-muted-foreground">
-        {t("reservations.count", { count: reservations.length })}
+      <p
+        aria-live={refreshing ? "off" : "polite"}
+        className="text-sm text-muted-foreground"
+      >
+        {refreshing
+          ? t("reservations.previousResults")
+          : t("reservations.count", { count: reservations.length })}
       </p>
       {[...days].map(([date, items]) => (
         <section
@@ -64,7 +93,11 @@ export function ReservationList({
           </h2>
           <ul className="divide-y overflow-hidden rounded-xl bg-card ring-1 ring-border">
             {items.map((reservation) => (
-              <ReservationRow key={reservation.id} reservation={reservation} />
+              <ReservationRow
+                key={reservation.id}
+                reservation={reservation}
+                search={search}
+              />
             ))}
           </ul>
         </section>
@@ -73,7 +106,13 @@ export function ReservationList({
   )
 }
 
-function ReservationRow({ reservation }: { reservation: Reservation }) {
+function ReservationRow({
+  reservation,
+  search,
+}: {
+  reservation: Reservation
+  search?: ReservationSearch
+}) {
   const { t } = useTranslation()
   const cancelled = reservation.status === "cancelled"
   return (
@@ -92,6 +131,9 @@ function ReservationRow({ reservation }: { reservation: Reservation }) {
         </p>
         <p className="text-xs text-muted-foreground">
           {formatDuration(durationMinutes(reservation))}
+        </p>
+        <p className="mt-1 text-xs text-muted-foreground">
+          {t("reservation.number", { id: reservation.id })}
         </p>
       </div>
       <div className="flex min-w-0 flex-1 flex-col gap-1">
@@ -124,7 +166,7 @@ function ReservationRow({ reservation }: { reservation: Reservation }) {
           {reservation.purpose}
         </p>
       </div>
-      <div className="flex shrink-0 flex-wrap gap-2">
+      <div className="flex shrink-0 flex-wrap gap-2 [&_a]:min-h-11 sm:[&_a]:min-h-9 [&_button]:min-h-11 sm:[&_button]:min-h-9">
         <Button
           variant="outline"
           size="sm"
@@ -132,6 +174,7 @@ function ReservationRow({ reservation }: { reservation: Reservation }) {
             <Link
               to="/reservations/$reservationId"
               params={{ reservationId: String(reservation.id) }}
+              search={{ back: search }}
               aria-label={`${t("reservations.view")}: ${t("reservation.number", { id: reservation.id })}`}
             />
           }

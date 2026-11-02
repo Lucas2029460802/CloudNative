@@ -19,6 +19,7 @@
     "test:unit": "vitest run --project unit",
     "test:integration": "vitest run --project integration",
     "test:e2e": "playwright test",
+    "test:ux": "playwright test --config playwright.ux.config.ts",
     "test:lighthouse": "lhci autorun",
     "db:generate": "bun run --filter @venue/api db:generate"
   },

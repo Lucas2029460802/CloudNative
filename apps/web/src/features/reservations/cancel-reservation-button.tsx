@@ -61,6 +61,7 @@ export function CancelReservationButton({
     <AlertDialog
       open={open}
       onOpenChange={(next) => {
+        if (cancel.isPending) return
         setOpen(next)
         if (!next) cancel.reset()
       }}
@@ -76,6 +77,11 @@ export function CancelReservationButton({
             {t("cancel.body", { venue: reservation.venue.name, date, time })}
           </AlertDialogDescription>
         </AlertDialogHeader>
+        {cancel.isPending && (
+          <output className="block text-sm text-muted-foreground">
+            {t("cancel.pending")}
+          </output>
+        )}
         {cancel.isError && (
           <Alert variant="destructive">
             <AlertTitle>{t("cancel.failed")}</AlertTitle>
@@ -84,15 +90,17 @@ export function CancelReservationButton({
             </AlertDescription>
           </Alert>
         )}
-        <AlertDialogFooter>
-          <AlertDialogCancel>{t("cancel.keep")}</AlertDialogCancel>
+        <AlertDialogFooter aria-busy={cancel.isPending}>
+          <AlertDialogCancel disabled={cancel.isPending}>
+            {t("cancel.keep")}
+          </AlertDialogCancel>
           <AlertDialogAction
             variant="destructive"
             disabled={cancel.isPending}
             onClick={() => cancel.mutate({ id: reservation.id })}
           >
             {cancel.isPending && <Spinner data-icon="inline-start" />}
-            {t("cancel.confirm")}
+            {t(cancel.isPending ? "cancel.pending" : "cancel.confirm")}
           </AlertDialogAction>
         </AlertDialogFooter>
       </AlertDialogContent>

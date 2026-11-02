@@ -42,7 +42,7 @@ function NavLink({
       to={to}
       aria-current={active ? "page" : undefined}
       className={cn(
-        "relative rounded-md px-2.5 py-1.5 text-sm font-medium opacity-75 transition-opacity outline-none hover:opacity-100 focus-visible:ring-3 focus-visible:ring-signal/60",
+        "relative inline-flex min-h-11 items-center rounded-md px-2.5 py-1.5 text-sm font-medium opacity-75 transition-opacity outline-none hover:opacity-100 focus-visible:ring-3 focus-visible:ring-signal/60 sm:min-h-9",
         // Wayfinding-style marker under the current section.
         "after:absolute after:inset-x-2.5 after:-bottom-[0.6rem] after:h-[3px] after:rounded-full",
         active && "opacity-100 after:bg-signal"
@@ -93,20 +93,19 @@ export function AppHeader() {
   const onReservations = pathname.startsWith("/reservations")
 
   return (
-    <header className="bg-board text-board-foreground">
-      <div className="mx-auto flex h-14 max-w-6xl items-center gap-2 px-4 sm:gap-6">
+    <header className="border-b border-board-foreground/10 bg-board text-board-foreground">
+      <div className="mx-auto grid max-w-6xl grid-cols-[1fr_auto] items-center gap-x-3 gap-y-2 px-4 py-3 sm:flex sm:min-h-18 sm:gap-6 sm:px-6 sm:py-0">
         <Link
           to="/"
-          className="flex shrink-0 items-center gap-2.5 rounded-md outline-none focus-visible:ring-3 focus-visible:ring-signal/60"
+          aria-label={t("app.name")}
+          className="flex min-h-11 shrink-0 items-center gap-2.5 rounded-md outline-none focus-visible:ring-3 focus-visible:ring-signal/60 sm:min-h-9"
         >
           <BrandMark />
-          <span className="hidden font-display text-xl sm:inline">
-            {t("app.name")}
-          </span>
+          <span className="font-display text-xl">{t("app.name")}</span>
         </Link>
         <nav
           aria-label={t("app.nav.label")}
-          className="flex items-center gap-0.5"
+          className="order-last col-span-2 flex items-center gap-1 sm:order-none"
         >
           <NavLink to="/" active={!onReservations}>
             {t("app.nav.venues")}

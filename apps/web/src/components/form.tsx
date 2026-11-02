@@ -57,16 +57,22 @@ function FormField({
       <FieldLabel htmlFor={field.name}>{label}</FieldLabel>
       {children}
       {error ? (
-        <FieldError>{t(error, errorValues)}</FieldError>
+        <FieldError id={`${field.name}-feedback`}>
+          {t(error, errorValues)}
+        </FieldError>
       ) : (
-        description && <FieldDescription>{description}</FieldDescription>
+        description && (
+          <FieldDescription id={`${field.name}-feedback`}>
+            {description}
+          </FieldDescription>
+        )
       )}
     </Field>
   )
 }
 
 /** Props that bind a text control to the current field. */
-function useTextControl() {
+function useTextControl(description?: string) {
   const field = useFieldContext<string>()
   return {
     id: field.name,
@@ -76,6 +82,10 @@ function useTextControl() {
     onChange: (event: { target: { value: string } }) =>
       field.handleChange(event.target.value),
     "aria-invalid": field.state.meta.errors.length > 0,
+    "aria-describedby":
+      field.state.meta.errors.length > 0 || description
+        ? `${field.name}-feedback`
+        : undefined,
   }
 }
 
@@ -84,7 +94,7 @@ function TextField({
   description,
   ...props
 }: FieldProps & ComponentProps<"input">) {
-  const control = useTextControl()
+  const control = useTextControl(description)
   return (
     <FormField label={label} description={description}>
       <Input {...control} {...props} />
@@ -97,7 +107,7 @@ function TextareaField({
   description,
   ...props
 }: FieldProps & ComponentProps<"textarea">) {
-  const control = useTextControl()
+  const control = useTextControl(description)
   return (
     <FormField label={label} description={description}>
       <Textarea rows={3} {...control} {...props} />
@@ -130,6 +140,11 @@ function NumberField({
         onBlur={field.handleBlur}
         onChange={(event) => field.handleChange(event.target.valueAsNumber)}
         aria-invalid={field.state.meta.errors.length > 0}
+        aria-describedby={
+          field.state.meta.errors.length > 0 || description
+            ? `${field.name}-feedback`
+            : undefined
+        }
         className={cn("tabular-nums", className)}
         {...props}
       />
@@ -146,6 +161,11 @@ function TimeField({ label, options }: FieldProps & { options: string[] }) {
         value={field.state.value}
         options={options}
         invalid={field.state.meta.errors.length > 0}
+        describedBy={
+          field.state.meta.errors.length > 0
+            ? `${field.name}-feedback`
+            : undefined
+        }
         onChange={field.handleChange}
       />
     </FormField>
