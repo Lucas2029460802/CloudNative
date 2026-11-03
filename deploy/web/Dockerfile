@@ -18,7 +18,7 @@ COPY apps/web/ apps/web/
 RUN bun run --cwd apps/web build
 
 # ---- Runtime stage: unprivileged nginx serving the build and proxying /api ----
-FROM nginxinc/nginx-unprivileged:1.30.6-alpine3.24 AS runtime
+FROM nginxinc/nginx-unprivileged:1.31.7-alpine3.24 AS runtime
 # API_UPSTREAM is substituted into the nginx config when the container starts.
 ENV API_UPSTREAM=http://api:3000 \
     NGINX_ENTRYPOINT_LOCAL_RESOLVERS=1
