@@ -1,3 +1,4 @@
+import { hostname } from "node:os"
 import { OpenAPIHandler } from "@orpc/openapi/fetch"
 import { OpenAPIReferencePlugin } from "@orpc/openapi/plugins"
 import { onError, ORPCError, ValidationError } from "@orpc/server"
@@ -75,6 +76,12 @@ export function createApp({
   })
 
   const app = new Hono()
+  const servedBy = hostname()
+
+  app.use("/api/*", async (c, next) => {
+    c.header("X-Served-By", servedBy)
+    await next()
+  })
 
   if (logRequests) {
     app.use("/api/*", async (c, next) => {
@@ -82,7 +89,9 @@ export function createApp({
       await next()
       if (c.req.path === "/api/health") return
       const duration = Math.round(performance.now() - startedAt)
-      console.log(`${c.req.method} ${c.req.path} ${c.res.status} ${duration}ms`)
+      console.log(
+        `${c.req.method} ${c.req.path} ${c.res.status} ${duration}ms X-Served-By=${servedBy}`
+      )
     })
   }
 
