@@ -1,0 +1,66 @@
+# Also the template for manual reports: the API copies spec.jobTemplate.spec into a new Job.
+# The container must stay named "report"; the API appends REPORT_ID to it.
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: venue-report
+  labels:
+    app.kubernetes.io/name: venue-report
+    app.kubernetes.io/component: report
+spec:
+  schedule: "*/2 * * * *" # demo cadence; production would use "5 0 * * *"
+  timeZone: Asia/Shanghai
+  concurrencyPolicy: Forbid # a slow run is never overlapped by the next one
+  startingDeadlineSeconds: 60
+  successfulJobsHistoryLimit: 3
+  failedJobsHistoryLimit: 3
+  jobTemplate:
+    metadata:
+      labels:
+        app.kubernetes.io/name: venue-report
+        app.kubernetes.io/component: report
+    spec:
+      backoffLimit: 0 # a failed worker is a failed Job; the report row records it
+      activeDeadlineSeconds: 120
+      ttlSecondsAfterFinished: 3600
+      template:
+        metadata:
+          labels:
+            app.kubernetes.io/name: venue-report
+            app.kubernetes.io/component: report
+        spec:
+          restartPolicy: Never
+          automountServiceAccountToken: false
+          securityContext:
+            runAsNonRoot: true
+            runAsUser: 1000
+            runAsGroup: 1000
+            seccompProfile:
+              type: RuntimeDefault
+          containers:
+            - name: report
+              image: venue-booking/api
+              imagePullPolicy: IfNotPresent
+              command: [node, dist/report.js]
+              envFrom:
+                - configMapRef:
+                    name: app-config
+                - secretRef:
+                    name: postgres-credentials
+              env:
+                - name: DATABASE_URL
+                  value: postgres://$(POSTGRES_USER):$(POSTGRES_PASSWORD)@postgres:5432/$(POSTGRES_DB)
+                - name: JOB_NAME
+                  valueFrom:
+                    fieldRef:
+                      fieldPath: metadata.labels['batch.kubernetes.io/job-name']
+              resources:
+                requests:
+                  cpu: 50m
+                  memory: 96Mi
+                limits:
+                  memory: 256Mi
+              securityContext:
+                allowPrivilegeEscalation: false
+                capabilities:
+                  drop: [ALL]

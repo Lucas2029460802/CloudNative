@@ -9,6 +9,7 @@ resources:
   - postgres.yaml
   - api.yaml
   - web.yaml
+  - report-cronjob.yaml
 
 # Images are built by Compose and loaded with `minikube image load`.
 # Bump newTag together with IMAGE_TAG on every rebuild: a new tag is the only way to roll pods.
