@@ -1,0 +1,22 @@
+$ kubectl -n venue-booking get deploy api -o wide; kubectl -n venue-booking get endpointslices -l kubernetes.io/service-name=api
+NAME   READY   UP-TO-DATE   AVAILABLE   AGE   CONTAINERS   IMAGES                    SELECTOR
+api    3/3     3            3           98s   api          venue-booking/api:2.0.0   app.kubernetes.io/name=api
+NAME        ADDRESSTYPE   PORTS   ENDPOINTS                             AGE
+api-qggdb   IPv4          3000    10.244.0.23,10.244.0.24,10.244.0.25   99s
+
+$ for i in $(seq 30); do curl -s -o /dev/null -D - http://127.0.0.1:57385/api/venues | grep -i x-served-by; done | sort | uniq -c
+     11 x-served-by: api-c8779bc78-6rkp8
+      9 x-served-by: api-c8779bc78-8zsfk
+     10 x-served-by: api-c8779bc78-927mc
+
+$ kubectl -n venue-booking logs pod/api-c8779bc78-6rkp8 | grep 'GET /api/venues' | tail -2
+GET /api/venues 200 2ms X-Served-By=api-c8779bc78-6rkp8
+GET /api/venues 200 2ms X-Served-By=api-c8779bc78-6rkp8
+
+$ kubectl -n venue-booking logs pod/api-c8779bc78-8zsfk | grep 'GET /api/venues' | tail -2
+GET /api/venues 200 2ms X-Served-By=api-c8779bc78-8zsfk
+GET /api/venues 200 1ms X-Served-By=api-c8779bc78-8zsfk
+
+$ kubectl -n venue-booking logs pod/api-c8779bc78-927mc | grep 'GET /api/venues' | tail -2
+GET /api/venues 200 2ms X-Served-By=api-c8779bc78-927mc
+GET /api/venues 200 2ms X-Served-By=api-c8779bc78-927mc

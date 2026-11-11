@@ -1,0 +1,24 @@
+$ kubectl -n venue-booking get cronjob venue-report -o wide
+NAME           SCHEDULE      TIMEZONE        SUSPEND   ACTIVE   LAST SCHEDULE   AGE     CONTAINERS   IMAGES                    SELECTOR
+venue-report   */2 * * * *   Asia/Shanghai   False     0        15s             7m55s   report       venue-booking/api:2.0.0   <none>
+
+$ kubectl -n venue-booking get cronjob venue-report -o jsonpath='{.spec}' (key fields)
+{'schedule': '*/2 * * * *', 'timeZone': 'Asia/Shanghai', 'concurrencyPolicy': 'Forbid', 'startingDeadlineSeconds': 60, 'successfulJobsHistoryLimit': 3, 'failedJobsHistoryLimit': 3}
+{'backoffLimit': 0, 'activeDeadlineSeconds': 120, 'ttlSecondsAfterFinished': 3600}
+
+$ kubectl -n venue-booking get jobs -l !venue-booking/report-id --sort-by=.metadata.creationTimestamp
+NAME                    STATUS     COMPLETIONS   DURATION   AGE
+venue-report-29907058   Complete   1/1           3s         4m15s
+venue-report-29907060   Complete   1/1           3s         2m15s
+venue-report-29907062   Complete   1/1           2s         15s
+
+$ kubectl -n venue-booking logs job.batch/venue-report-29907060
+Report 1: succeeded
+
+$ kubectl -n venue-booking logs job.batch/venue-report-29907062
+Report 1: succeeded
+
+$ curl -s http://127.0.0.1:57385/api/reports   (id trigger status from to jobName startedAt finishedAt error)
+1 scheduled succeeded 2026-11-12 2026-11-18 venue-report-29907062 2026-11-11T19:02:00.592Z 2026-11-11T19:02:00.607Z None
+3 manual failed 2026-11-13 2026-11-19 venue-report-manual-3-3aec4 None 2026-11-11T18:57:22.784Z Report runner is unavailable
+2 manual succeeded 2026-11-13 2026-11-16 venue-report-manual-2-6a6b8 2026-11-11T18:56:03.615Z 2026-11-11T18:56:03.636Z None

@@ -1,0 +1,64 @@
+$ bun run typecheck && bun run lint && bun run format:check && bun run knip
+@venue/contracts typecheck: Exited with code 0
+@venue/api typecheck: Exited with code 0
+@venue/web typecheck: Exited with code 0
+$ oxlint
+All matched files use the correct format.
+Finished in 510ms on 139 files using 24 threads.
+$ knip
+
+$ bun run test:unit
+ Test Files  5 passed (5)
+      Tests  63 passed (63)
+
+$ bun run test:integration   (disposable PostgreSQL 18 container)
+ Test Files  4 passed (4)
+      Tests  81 passed (81)
+
+$ bunx vitest run tests/unit/reports.test.ts tests/integration/reports.test.ts --reporter=verbose   (report-related cases)
+ ✓ |unit| tests/unit/reports.test.ts > scheduledWindow > rolls forward at midnight in the application time zone
+ ✓ |unit| tests/unit/reports.test.ts > scheduledWindow > uses calendar days across DST and leap days, including a single-day window
+ ✓ |unit| tests/unit/reports.test.ts > buildReportJob > copies the template and targets the named report container without owner references
+ ✓ |unit| tests/unit/reports.test.ts > buildReportJob > creates env when absent and rejects a template without a report container
+ ✓ |unit| tests/unit/reports.test.ts > reportJobFailure > returns only an active Failed condition: {}
+ ✓ |unit| tests/unit/reports.test.ts > reportJobFailure > returns only an active Failed condition: {"status":{"conditions":[{"type":"Failed","status":"False"}]}}
+ ✓ |unit| tests/unit/reports.test.ts > reportJobFailure > returns only an active Failed condition: {"status":{"conditions":[{"type":"Failed","status":"True"}]}}
+ ✓ |unit| tests/unit/reports.test.ts > reportJobFailure > returns only an active Failed condition: {"status":{"conditions":[{"type":"Complete","status":"True"}]}}
+ ✓ |unit| tests/unit/reports.test.ts > reportJobFailure > returns only an active Failed condition: {"status":{"conditions":[{"type":"Complete","status":"True"},{"type":"Failed","status":"True","reason":"DeadlineExceeded"}]}}
+ ✓ |unit| tests/unit/reports.test.ts > Kubernetes launcher > uses bounded requests, rereads rotating tokens, and accepts an existing Job
+ ✓ |unit| tests/unit/reports.test.ts > Kubernetes launcher > returns null for a missing Job and rejects other Kubernetes errors without response details
+ ✓ |unit| tests/unit/reports.test.ts > Kubernetes launcher > rejects a non-409 Job creation error with its HTTP status and no response details
+ ✓ |unit| tests/unit/reports.test.ts > report configuration and input > parses the report runtime interface
+ ✓ |unit| tests/unit/reports.test.ts > report configuration and input > rejects invalid report config {"REPORT_RUNNER":"unknown"}
+ ✓ |unit| tests/unit/reports.test.ts > report configuration and input > rejects invalid report config {"REPORT_WINDOW_DAYS":"0"}
+ ✓ |unit| tests/unit/reports.test.ts > report configuration and input > rejects invalid report config {"REPORT_WINDOW_DAYS":"367"}
+ ✓ |unit| tests/unit/reports.test.ts > report configuration and input > rejects invalid report config {"REPORT_ID":"-1"}
+ ✓ |unit| tests/unit/reports.test.ts > report configuration and input > rejects invalid report config {"JOB_NAME":"INVALID"}
+ ✓ |unit| tests/unit/reports.test.ts > report configuration and input > rejects invalid report config {"KUBERNETES_SERVICE_PORT":"65536"}
+ ✓ |unit| tests/unit/reports.test.ts > report configuration and input > caps the inclusive period at 366 days
+ ✓ |integration| tests/integration/reports.test.ts > inline reports > aggregates confirmed bookings within both inclusive bounds and includes every venue
+ ✓ |integration| tests/integration/reports.test.ts > inline reports > POST inline returns a completed snapshot and timestamps
+ ✓ |integration| tests/integration/reports.test.ts > inline reports > returns zero utilisation without reservations
+ ✓ |integration| tests/integration/reports.test.ts > inline reports > returns an empty snapshot when there are no venues
+ ✓ |integration| tests/integration/reports.test.ts > inline reports > serialises duplicate executions and preserves the completed snapshot
+ ✓ |integration| tests/integration/reports.test.ts > inline reports > commits running so another connection sees the start before aggregation finishes
+ ✓ |integration| tests/integration/reports.test.ts > inline reports > ignores a manual worker for a different Job
+ ✓ |integration| tests/integration/reports.test.ts > inline reports > ignores a scheduled worker for a different Job
+ ✓ |integration| tests/integration/reports.test.ts > inline reports > upserts one scheduled row, skips a duplicate Job, and refreshes it for a new Job
+ ✓ |integration| tests/integration/reports.test.ts > inline reports > serialises concurrent scheduled upserts for the same period
+ ✓ |integration| tests/integration/reports.test.ts > inline reports > records a sanitised SQL failure inside the locked transaction
+ ✓ |integration| tests/integration/reports.test.ts > inline reports > lists at most 50 reports newest first and returns REPORT_NOT_FOUND
+ ✓ |integration| tests/integration/reports.test.ts > inline reports > validates reversed, oversized, and invalid report dates
+ ✓ |integration| tests/integration/reports.test.ts > inline reports > adds the serving instance header to health, validation, and missing routes and logs it
+ ✓ |integration| tests/integration/reports.test.ts > Kubernetes reports > persists the Job name before launch and reconciles a failed Job on get
+ ✓ |integration| tests/integration/reports.test.ts > Kubernetes reports > treats HTTP 409 when creating the pre-named Job as already launched
+ ✓ |integration| tests/integration/reports.test.ts > Kubernetes reports > marks a launch failure failed and returns a sanitised 503
+ ✓ |integration| tests/integration/reports.test.ts > Kubernetes reports > recovers an ambiguous Job create only when the Job exists: true
+ ✓ |integration| tests/integration/reports.test.ts > Kubernetes reports > recovers an ambiguous Job create only when the Job exists: false
+ ✓ |integration| tests/integration/reports.test.ts > Kubernetes reports > grants a missing Job 60 seconds, then fails unfinished rows on list
+ ✓ |integration| tests/integration/reports.test.ts > Kubernetes reports > also recovers running rows after their Job is deleted
+ ✓ |integration| tests/integration/reports.test.ts > Kubernetes reports > keeps a report unfinished during an API outage or a Complete condition without a saved snapshot
+ ✓ |integration| tests/integration/reports.test.ts > Kubernetes reports > does not overwrite a worker that completes while reconciliation reads the Job
+ ✓ |integration| tests/integration/reports.test.ts > Kubernetes reports > does not fail a newer scheduled execution after reading an older Job
+ Test Files  2 passed (2)
+      Tests  44 passed (44)

@@ -1,0 +1,323 @@
+# Lab 1 business flows: browser/curl -> web (nginx) -> api Service -> postgres StatefulSet
+
+HTTP/1.1 200 OK
+x-served-by: api-c8779bc78-6rkp8
+[
+  {
+    "id": 1,
+    "name": "Aurora Lecture Hall",
+    "location": "Teaching Building A, 1F",
+    "capacity": 180,
+    "openTime": "08:00",
+    "closeTime": "22:00",
+    "status": "open",
+    "description": "Tiered seating with dual projectors, lecture capture and a wireless microphone kit.",
+    "createdAt": "2026-11-11T18:54:29.764Z"
+  },
+  {
+    "id": 2,
+    "name": "Seminar Room 305",
+    "location": "Teaching Building B, 3F",
+    "capacity": 32,
+    "openTime": "08:00",
+    "closeTime": "21:00",
+    "status": "open",
+    "description": "Movable tables for workshops and group discussions, with a 75-inch display.",
+    "createdAt": "2026-11-11T18:54:29.764Z"
+  },
+  {
+    "id": 3,
+    "name": "Maple Meeting Room",
+    "location": "Library, 4F",
+    "capacity": 12,
+    "openTime": "09:00",
+    "closeTime": "18:00",
+    "status": "open",
+    "description": "Quiet boardroom with a video-conferencing camera and whiteboard wall.",
+    "createdAt": "2026-11-11T18:54:29.764Z"
+  },
+  {
+    "id": 4,
+    "name": "Badminton Court 2",
+    "location": "Sports Center, Hall 1",
+    "capacity": 8,
+    "openTime": "07:00",
+    "closeTime": "22:00",
+    "status": "open",
+    "description": "Full-size indoor court. Rackets can be borrowed at the front desk.",
+    "createdAt": "2026-11-11T18:54:29.764Z"
+  },
+  {
+    "id": 5,
+    "name": "Black Box Studio",
+    "location": "Arts Center, B1",
+    "capacity": 60,
+    "openTime": "10:00",
+    "closeTime": "22:00",
+    "status": "open",
+    "description": "Flexible performance space with stage lighting, sound system and sprung floor.",
+    "createdAt": "2026-11-11T18:54:29.764Z"
+  },
+  {
+    "id": 6,
+    "name": "Rooftop Garden",
+    "location": "Student Center, Rooftop",
+    "capacity": 80,
+    "openTime": "09:00",
+    "closeTime": "20:00",
+    "status": "disabled",
+    "description": "Closed for waterproofing maintenance until further notice.",
+    "createdAt": "2026-11-11T18:54:29.764Z"
+  }
+]
+
+HTTP/1.1 200 OK
+x-served-by: api-c8779bc78-927mc
+{
+  "id": 1,
+  "name": "Aurora Lecture Hall",
+  "location": "Teaching Building A, 1F",
+  "capacity": 180,
+  "openTime": "08:00",
+  "closeTime": "22:00",
+  "status": "open",
+  "description": "Tiered seating with dual projectors, lecture capture and a wireless microphone kit.",
+  "createdAt": "2026-11-11T18:54:29.764Z"
+}
+
+HTTP/1.1 201 Created
+x-served-by: api-c8779bc78-8zsfk
+{
+  "id": 7,
+  "name": "Lab 2 Demo Room",
+  "location": "Building K, 2F",
+  "capacity": 20,
+  "openTime": "08:00",
+  "closeTime": "22:00",
+  "status": "open",
+  "description": "Created on Kubernetes",
+  "createdAt": "2026-11-11T18:55:36.281Z"
+}
+
+HTTP/1.1 201 Created
+x-served-by: api-c8779bc78-8zsfk
+{
+  "id": 1,
+  "venueId": 1,
+  "venue": {
+    "id": 1,
+    "name": "Aurora Lecture Hall",
+    "location": "Teaching Building A, 1F"
+  },
+  "bookerName": "Peng",
+  "attendeeCount": 40,
+  "date": "2026-11-13",
+  "startTime": "09:00",
+  "endTime": "10:30",
+  "purpose": "Cloud native seminar",
+  "status": "confirmed",
+  "createdAt": "2026-11-11T18:55:36.864Z",
+  "cancelledAt": null
+}
+
+HTTP/1.1 409 Conflict
+x-served-by: api-c8779bc78-6rkp8
+{
+  "defined": true,
+  "code": "RESERVATION_CONFLICT",
+  "status": 409,
+  "message": "The requested time overlaps 1 existing reservation(s)",
+  "data": {
+    "conflicts": [
+      {
+        "id": 1,
+        "startTime": "09:00",
+        "endTime": "10:30"
+      }
+    ]
+  }
+}
+
+HTTP/1.1 201 Created
+x-served-by: api-c8779bc78-927mc
+{
+  "id": 3,
+  "venueId": 1,
+  "venue": {
+    "id": 1,
+    "name": "Aurora Lecture Hall",
+    "location": "Teaching Building A, 1F"
+  },
+  "bookerName": "Zheng",
+  "attendeeCount": 25,
+  "date": "2026-11-14",
+  "startTime": "14:00",
+  "endTime": "14:45",
+  "purpose": "Kubernetes lab review",
+  "status": "confirmed",
+  "createdAt": "2026-11-11T18:55:37.371Z",
+  "cancelledAt": null
+}
+
+HTTP/1.1 201 Created
+x-served-by: api-c8779bc78-6rkp8
+{
+  "id": 4,
+  "venueId": 2,
+  "venue": {
+    "id": 2,
+    "name": "Seminar Room 305",
+    "location": "Teaching Building B, 3F"
+  },
+  "bookerName": "Huang",
+  "attendeeCount": 12,
+  "date": "2026-11-15",
+  "startTime": "13:00",
+  "endTime": "15:00",
+  "purpose": "Group meeting",
+  "status": "confirmed",
+  "createdAt": "2026-11-11T18:55:37.583Z",
+  "cancelledAt": null
+}
+
+HTTP/1.1 201 Created
+x-served-by: api-c8779bc78-927mc
+{
+  "id": 5,
+  "venueId": 3,
+  "venue": {
+    "id": 3,
+    "name": "Maple Meeting Room",
+    "location": "Library, 4F"
+  },
+  "bookerName": "Peng",
+  "attendeeCount": 6,
+  "date": "2026-11-16",
+  "startTime": "09:30",
+  "endTime": "10:00",
+  "purpose": "Short sync",
+  "status": "confirmed",
+  "createdAt": "2026-11-11T18:55:37.928Z",
+  "cancelledAt": null
+}
+
+HTTP/1.1 200 OK
+x-served-by: api-c8779bc78-6rkp8
+[
+  {
+    "id": 1,
+    "venueId": 1,
+    "venue": {
+      "id": 1,
+      "name": "Aurora Lecture Hall",
+      "location": "Teaching Building A, 1F"
+    },
+    "bookerName": "Peng",
+    "attendeeCount": 40,
+    "date": "2026-11-13",
+    "startTime": "09:00",
+    "endTime": "10:30",
+    "purpose": "Cloud native seminar",
+    "status": "confirmed",
+    "createdAt": "2026-11-11T18:55:36.864Z",
+    "cancelledAt": null
+  },
+  {
+    "id": 3,
+    "venueId": 1,
+    "venue": {
+      "id": 1,
+      "name": "Aurora Lecture Hall",
+      "location": "Teaching Building A, 1F"
+    },
+    "bookerName": "Zheng",
+    "attendeeCount": 25,
+    "date": "2026-11-14",
+    "startTime": "14:00",
+    "endTime": "14:45",
+    "purpose": "Kubernetes lab review",
+    "status": "confirmed",
+    "createdAt": "2026-11-11T18:55:37.371Z",
+    "cancelledAt": null
+  },
+  {
+    "id": 4,
+    "venueId": 2,
+    "venue": {
+      "id": 2,
+      "name": "Seminar Room 305",
+      "location": "Teaching Building B, 3F"
+    },
+    "bookerName": "Huang",
+    "attendeeCount": 12,
+    "date": "2026-11-15",
+    "startTime": "13:00",
+    "endTime": "15:00",
+    "purpose": "Group meeting",
+    "status": "confirmed",
+    "createdAt": "2026-11-11T18:55:37.583Z",
+    "cancelledAt": null
+  },
+  {
+    "id": 5,
+    "venueId": 3,
+    "venue": {
+      "id": 3,
+      "name": "Maple Meeting Room",
+      "location": "Library, 4F"
+    },
+    "bookerName": "Peng",
+    "attendeeCount": 6,
+    "date": "2026-11-16",
+    "startTime": "09:30",
+    "endTime": "10:00",
+    "purpose": "Short sync",
+    "status": "confirmed",
+    "createdAt": "2026-11-11T18:55:37.928Z",
+    "cancelledAt": null
+  }
+]
+
+HTTP/1.1 200 OK
+x-served-by: api-c8779bc78-8zsfk
+{
+  "id": 4,
+  "venueId": 2,
+  "venue": {
+    "id": 2,
+    "name": "Seminar Room 305",
+    "location": "Teaching Building B, 3F"
+  },
+  "bookerName": "Huang",
+  "attendeeCount": 12,
+  "date": "2026-11-15",
+  "startTime": "13:00",
+  "endTime": "15:00",
+  "purpose": "Group meeting",
+  "status": "cancelled",
+  "createdAt": "2026-11-11T18:55:37.583Z",
+  "cancelledAt": "2026-11-11T18:55:38.742Z"
+}
+
+HTTP/1.1 200 OK
+x-served-by: api-c8779bc78-927mc
+[
+  {
+    "id": 4,
+    "venueId": 2,
+    "venue": {
+      "id": 2,
+      "name": "Seminar Room 305",
+      "location": "Teaching Building B, 3F"
+    },
+    "bookerName": "Huang",
+    "attendeeCount": 12,
+    "date": "2026-11-15",
+    "startTime": "13:00",
+    "endTime": "15:00",
+    "purpose": "Group meeting",
+    "status": "cancelled",
+    "createdAt": "2026-11-11T18:55:37.583Z",
+    "cancelledAt": "2026-11-11T18:55:38.742Z"
+  }
+]

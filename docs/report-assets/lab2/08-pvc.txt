@@ -1,0 +1,34 @@
+$ kubectl -n venue-booking get pvc,pv -o wide
+NAME                                    STATUS   VOLUME                                     CAPACITY   ACCESS MODES   STORAGECLASS   VOLUMEATTRIBUTESCLASS   AGE     VOLUMEMODE
+persistentvolumeclaim/data-postgres-0   Bound    pvc-50b33992-f354-4273-a20e-c7da62df31cd   1Gi        RWO            standard       <unset>                 2m48s   Filesystem
+
+NAME                                                        CAPACITY   ACCESS MODES   RECLAIM POLICY   STATUS   CLAIM                           STORAGECLASS   VOLUMEATTRIBUTESCLASS   REASON   AGE     VOLUMEMODE
+persistentvolume/pvc-50b33992-f354-4273-a20e-c7da62df31cd   1Gi        RWO            Delete           Bound    venue-booking/data-postgres-0   standard       <unset>                          2m47s   Filesystem
+
+$ kubectl -n venue-booking exec postgres-0 -- sh -c df -h /var/lib/postgresql; ls /var/lib/postgresql/18/docker | head -5
+Filesystem                Size      Used Available Use% Mounted on
+/dev/sde               1006.9G     42.7G    912.9G   4% /etc/hosts
+PG_VERSION
+base
+global
+pg_commit_ts
+pg_dynshmem
+
+$ curl -s http://127.0.0.1:57385/api/reservations | python -c 'count'
+4 reservations before
+$ kubectl -n venue-booking delete pod postgres-0
+pod "postgres-0" deleted from venue-booking namespace
+
+$ kubectl -n venue-booking rollout status sts/postgres --timeout=180s
+Waiting for 1 pods to be ready...
+partitioned roll out complete: 1 new pods have been updated...
+
+pod uid before: 8aa430b1-b6b9-4b45-a7eb-d71b5608cb19
+pod uid after:  640d3785-a998-42b9-8611-bb48398da207
+
+4 reservations after
+
+$ kubectl -n venue-booking get pod postgres-0 -o wide
+NAME         READY   STATUS    RESTARTS   AGE   IP            NODE       NOMINATED NODE   READINESS GATES
+postgres-0   1/1     Running   0          5s    10.244.0.30   minikube   <none>           <none>
+

@@ -1,0 +1,57 @@
+$ kubectl -n venue-booking get deploy,sts,ds,cronjob,job,pod,svc,endpointslice,cm,secret,pvc,sa,role,rolebinding -o wide
+NAME                  READY   UP-TO-DATE   AVAILABLE   AGE   CONTAINERS   IMAGES                         SELECTOR
+deployment.apps/api   3/3     3            3           43s   api          venue-booking/api:2.0.0        app.kubernetes.io/name=api
+deployment.apps/web   2/2     2            2           43s   web          venue-booking/frontend:2.0.0   app.kubernetes.io/name=web
+
+NAME                        READY   AGE   CONTAINERS   IMAGES
+statefulset.apps/postgres   1/1     43s   postgres     postgres:18.6-alpine3.24
+
+NAME                        DESIRED   CURRENT   READY   UP-TO-DATE   AVAILABLE   NODE SELECTOR            AGE   CONTAINERS   IMAGES                    SELECTOR
+daemonset.apps/fluent-bit   1         1         1       1            1           kubernetes.io/os=linux   42s   fluent-bit   fluent/fluent-bit:5.1.5   app.kubernetes.io/name=fluent-bit
+
+NAME                         SCHEDULE      TIMEZONE        SUSPEND   ACTIVE   LAST SCHEDULE   AGE   CONTAINERS   IMAGES                    SELECTOR
+cronjob.batch/venue-report   */2 * * * *   Asia/Shanghai   False     0        <none>          42s   report       venue-booking/api:2.0.0   <none>
+
+NAME                       READY   STATUS    RESTARTS   AGE   IP            NODE       NOMINATED NODE   READINESS GATES
+pod/api-c8779bc78-6rkp8    1/1     Running   0          43s   10.244.0.23   minikube   <none>           <none>
+pod/api-c8779bc78-8zsfk    1/1     Running   0          43s   10.244.0.25   minikube   <none>           <none>
+pod/api-c8779bc78-927mc    1/1     Running   0          43s   10.244.0.24   minikube   <none>           <none>
+pod/fluent-bit-2tvks       1/1     Running   0          42s   10.244.0.27   minikube   <none>           <none>
+pod/postgres-0             1/1     Running   0          42s   10.244.0.26   minikube   <none>           <none>
+pod/web-6b8dc596d7-kjk57   1/1     Running   0          43s   10.244.0.22   minikube   <none>           <none>
+pod/web-6b8dc596d7-p4ztn   1/1     Running   0          43s   10.244.0.21   minikube   <none>           <none>
+
+NAME               TYPE        CLUSTER-IP      EXTERNAL-IP   PORT(S)          AGE   SELECTOR
+service/api        ClusterIP   10.100.232.44   <none>        3000/TCP         43s   app.kubernetes.io/name=api
+service/postgres   ClusterIP   None            <none>        5432/TCP         43s   app.kubernetes.io/name=postgres
+service/web        NodePort    10.106.130.55   <none>        8080:31975/TCP   43s   app.kubernetes.io/name=web
+
+NAME                                            ADDRESSTYPE   PORTS   ENDPOINTS                             AGE
+endpointslice.discovery.k8s.io/api-qggdb        IPv4          3000    10.244.0.23,10.244.0.24,10.244.0.25   43s
+endpointslice.discovery.k8s.io/postgres-rqwvd   IPv4          5432    10.244.0.26                           43s
+endpointslice.discovery.k8s.io/web-spz2n        IPv4          8080    10.244.0.21,10.244.0.22               43s
+
+NAME                                     DATA   AGE
+configmap/app-config-5tdtccbhm6          7      43s
+configmap/fluent-bit-config-42d4ht6hdc   1      43s
+configmap/kube-root-ca.crt               1      43s
+
+NAME                                     TYPE     DATA   AGE
+secret/postgres-credentials-c54md297kf   Opaque   2      43s
+
+NAME                                    STATUS   VOLUME                                     CAPACITY   ACCESS MODES   STORAGECLASS   VOLUMEATTRIBUTESCLASS   AGE   VOLUMEMODE
+persistentvolumeclaim/data-postgres-0   Bound    pvc-50b33992-f354-4273-a20e-c7da62df31cd   1Gi        RWO            standard       <unset>                 43s   Filesystem
+
+NAME                     AGE
+serviceaccount/api       43s
+serviceaccount/default   43s
+
+NAME                                             CREATED AT
+role.rbac.authorization.k8s.io/report-launcher   2026-11-11T18:54:19Z
+
+NAME                                                    ROLE                   AGE   USERS   GROUPS   SERVICEACCOUNTS
+rolebinding.rbac.authorization.k8s.io/report-launcher   Role/report-launcher   43s                    venue-booking/api
+
+$ kubectl get pv
+NAME                                       CAPACITY   ACCESS MODES   RECLAIM POLICY   STATUS   CLAIM                           STORAGECLASS   VOLUMEATTRIBUTESCLASS   REASON   AGE
+pvc-50b33992-f354-4273-a20e-c7da62df31cd   1Gi        RWO            Delete           Bound    venue-booking/data-postgres-0   standard       <unset>                          44s

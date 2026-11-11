@@ -1,0 +1,58 @@
+$ minikube version
+minikube version: v1.39.0
+commit: 7a9f6a841470a207de8cf4bafcccee0969d8ba10
+
+$ kubectl version
+Client Version: v1.37.1
+Kustomize Version: v5.8.1
+Server Version: v1.37.0
+
+$ minikube profile list
+┌──────────┬────────┬────────────┬──────────────┬─────────┬────────┬───────┬────────────────┬────────────────────┐
+│ PROFILE  │ DRIVER │  RUNTIME   │      IP      │ VERSION │ STATUS │ NODES │ ACTIVE PROFILE │ ACTIVE KUBECONTEXT │
+├──────────┼────────┼────────────┼──────────────┼─────────┼────────┼───────┼────────────────┼────────────────────┤
+│ minikube │ docker │ containerd │ 192.168.49.2 │ v1.37.0 │ OK     │ 1     │ *              │ *                  │
+└──────────┴────────┴────────────┴──────────────┴─────────┴────────┴───────┴────────────────┴────────────────────┘
+
+$ kubectl get nodes -o wide
+NAME       STATUS   ROLES           AGE   VERSION   INTERNAL-IP    EXTERNAL-IP   OS-IMAGE                         KERNEL-VERSION                              CONTAINER-RUNTIME
+minikube   Ready    control-plane   66m   v1.37.0   192.168.49.2   <none>        Debian GNU/Linux 12 (bookworm)   6.18.58.1-microsoft-standard-WSL2 (amd64)   containerd://2.3.4
+
+$ kubectl describe node minikube (excerpt)
+Capacity:
+  cpu:                24
+  ephemeral-storage:  1081101176832
+  hugepages-1Gi:      0
+  hugepages-2Mi:      0
+  memory:             28736468Ki
+  pods:               110
+Allocatable:
+  cpu:                24
+  ephemeral-storage:  1081101176832
+  hugepages-1Gi:      0
+  hugepages-2Mi:      0
+  memory:             28736468Ki
+  pods:               110
+System Info:
+System Info:
+  Machine ID:                 b7566eefbea02b7ce85821e86a97158b
+  System UUID:                b7566eefbea02b7ce85821e86a97158b
+  Boot ID:                    aaf211c1-d244-49d6-8832-13c4f246d857
+  Kernel Version:             6.18.58.1-microsoft-standard-WSL2
+  OS Image:                   Debian GNU/Linux 12 (bookworm)
+  Operating System:           linux
+  Architecture:               amd64
+  Container Runtime Version:  containerd://2.3.4
+  Kubelet Version:            v1.37.0
+PodCIDR:                      10.244.0.0/24
+PodCIDRs:                     10.244.0.0/24
+
+$ kubectl get storageclass
+NAME                 PROVISIONER                RECLAIMPOLICY   VOLUMEBINDINGMODE   ALLOWVOLUMEEXPANSION   AGE
+standard (default)   k8s.io/minikube-hostpath   Delete          Immediate           false                  66m
+
+$ minikube image ls | grep venue-booking
+docker.io/venue-booking/frontend:2.0.0
+docker.io/venue-booking/api:2.0.0
+docker.io/library/postgres:18.6-alpine3.24
+docker.io/fluent/fluent-bit:5.1.5

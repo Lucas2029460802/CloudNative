@@ -1,0 +1,5 @@
+$ E2E_BASE_URL=http://127.0.0.1:57385 bun run test:e2e   (against the minikube deployment through `minikube service`)
+  48 passed (1.1m)
+
+$ E2E_BASE_URL=http://localhost:8080 bun run test:e2e   (Docker Compose stack, REPORT_RUNNER=inline)
+  48 passed (52.1s)

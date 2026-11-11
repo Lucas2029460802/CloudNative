@@ -1,0 +1,19 @@
+$ kubectl -n venue-booking get svc -o wide
+NAME       TYPE        CLUSTER-IP      EXTERNAL-IP   PORT(S)          AGE     SELECTOR
+api        ClusterIP   10.100.232.44   <none>        3000/TCP         2m59s   app.kubernetes.io/name=api
+postgres   ClusterIP   None            <none>        5432/TCP         2m59s   app.kubernetes.io/name=postgres
+web        NodePort    10.106.130.55   <none>        8080:31975/TCP   2m59s   app.kubernetes.io/name=web
+
+$ kubectl -n venue-booking get endpointslices
+NAME             ADDRESSTYPE   PORTS   ENDPOINTS                             AGE
+api-qggdb        IPv4          3000    10.244.0.23,10.244.0.24,10.244.0.25   2m59s
+postgres-rqwvd   IPv4          5432    10.244.0.30                           2m59s
+web-spz2n        IPv4          8080    10.244.0.21,10.244.0.22               2m59s
+
+$ kubectl -n venue-booking exec deploy/web -- getent hosts api.venue-booking.svc.cluster.local postgres.venue-booking.svc.cluster.local postgres-0.postgres.venue-booking.svc.cluster.local
+10.100.232.44     api.venue-booking.svc.cluster.local  api.venue-booking.svc.cluster.local
+10.244.0.30       postgres.venue-booking.svc.cluster.local  postgres.venue-booking.svc.cluster.local
+10.244.0.30       postgres-0.postgres.venue-booking.svc.cluster.local  postgres-0.postgres.venue-booking.svc.cluster.local
+
+$ kubectl -n venue-booking exec deploy/web -- wget -qO- http://api.venue-booking.svc.cluster.local:3000/api/health
+{"status":"ok","database":"up"}

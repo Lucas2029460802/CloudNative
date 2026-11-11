@@ -1,0 +1,137 @@
+$ curl -s -X POST http://127.0.0.1:57385/api/reports -H 'content-type: application/json' -d '{"from":"2026-11-13","to":"2026-11-16"}'
+{
+    "id": 2,
+    "trigger": "manual",
+    "from": "2026-11-13",
+    "to": "2026-11-16",
+    "status": "pending",
+    "jobName": "venue-report-manual-2-6a6b8",
+    "createdAt": "2026-11-11T18:56:02.949Z",
+    "startedAt": null,
+    "finishedAt": null,
+    "error": null,
+    "results": null
+}
+
+# Poll the report status every second until it finishes
+18:56:03 succeeded 2026-11-11T18:56:03.615Z 2026-11-11T18:56:03.636Z
+
+$ kubectl -n venue-booking get jobs -L venue-booking/report-id
+NAME                          STATUS     COMPLETIONS   DURATION   AGE   REPORT-ID
+venue-report-29907056         Complete   1/1           3s         4s    
+venue-report-manual-2-6a6b8   Running    0/1           1s         2s    2
+
+$ kubectl -n venue-booking describe job venue-report-manual-2-6a6b8
+Name:                        venue-report-manual-2-6a6b8
+Namespace:                   venue-booking
+Selector:                    batch.kubernetes.io/controller-uid=b8ef75e8-6d57-4e08-b71d-65f9e7bf976f
+Labels:                      app.kubernetes.io/name=venue-report
+                             venue-booking/report-id=2
+Annotations:                 <none>
+Parallelism:                 1
+Completions:                 1
+Completion Mode:             NonIndexed
+Suspend:                     false
+Backoff Limit:               0
+TTL Seconds After Finished:  3600
+Start Time:                  Thu, 12 Nov 2026 02:56:03 +0800
+Active Deadline Seconds:     120s
+Pods Statuses:               1 Active (1 Ready) / 0 Succeeded / 0 Failed
+Pod Template:
+  Labels:  app.kubernetes.io/component=report
+           app.kubernetes.io/name=venue-report
+           app.kubernetes.io/part-of=venue-booking
+           batch.kubernetes.io/controller-uid=b8ef75e8-6d57-4e08-b71d-65f9e7bf976f
+           batch.kubernetes.io/job-name=venue-report-manual-2-6a6b8
+           controller-uid=b8ef75e8-6d57-4e08-b71d-65f9e7bf976f
+           job-name=venue-report-manual-2-6a6b8
+           venue-booking/report-id=2
+  Containers:
+   report:
+    Image:      venue-booking/api:2.0.0
+    Port:       <none>
+    Host Port:  <none>
+    Command:
+      node
+      dist/report.js
+    Limits:
+      memory:  256Mi
+    Requests:
+      cpu:     50m
+      memory:  96Mi
+    Environment Variables from:
+      app-config-5tdtccbhm6            ConfigMap  Optional: false
+      postgres-credentials-c54md297kf  Secret     Optional: false
+    Environment:
+      DATABASE_URL:  postgres://$(POSTGRES_USER):$(POSTGRES_PASSWORD)@postgres:5432/$(POSTGRES_DB)
+      JOB_NAME:       (v1:metadata.labels['batch.kubernetes.io/job-name'])
+      REPORT_ID:     2
+    Mounts:          <none>
+  Volumes:           <none>
+  Node-Selectors:    <none>
+  Tolerations:       <none>
+Events:
+  Type    Reason            Age   From            Message
+  ----    ------            ----  ----            -------
+  Normal  SuccessfulCreate  1s    job-controller  Created pod: venue-report-manual-2-6a6b8-zqlqg
+
+$ kubectl -n venue-booking logs job/venue-report-manual-2-6a6b8
+Report 2: succeeded
+
+$ curl -s http://127.0.0.1:57385/api/reports/2
+{
+    "id": 2,
+    "trigger": "manual",
+    "from": "2026-11-13",
+    "to": "2026-11-16",
+    "status": "succeeded",
+    "jobName": "venue-report-manual-2-6a6b8",
+    "createdAt": "2026-11-11T18:56:02.949Z",
+    "startedAt": "2026-11-11T18:56:03.615Z",
+    "finishedAt": "2026-11-11T18:56:03.636Z",
+    "error": null,
+    "results": [
+        {
+            "venueId": 1,
+            "venueName": "Aurora Lecture Hall",
+            "reservationCount": 2,
+            "bookedMinutes": 135
+        },
+        {
+            "venueId": 2,
+            "venueName": "Seminar Room 305",
+            "reservationCount": 0,
+            "bookedMinutes": 0
+        },
+        {
+            "venueId": 3,
+            "venueName": "Maple Meeting Room",
+            "reservationCount": 1,
+            "bookedMinutes": 30
+        },
+        {
+            "venueId": 4,
+            "venueName": "Badminton Court 2",
+            "reservationCount": 0,
+            "bookedMinutes": 0
+        },
+        {
+            "venueId": 5,
+            "venueName": "Black Box Studio",
+            "reservationCount": 0,
+            "bookedMinutes": 0
+        },
+        {
+            "venueId": 6,
+            "venueName": "Rooftop Garden",
+            "reservationCount": 0,
+            "bookedMinutes": 0
+        },
+        {
+            "venueId": 7,
+            "venueName": "Lab 2 Demo Room",
+            "reservationCount": 0,
+            "bookedMinutes": 0
+        }
+    ]
+}

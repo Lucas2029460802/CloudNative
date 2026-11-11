@@ -1,0 +1,20 @@
+$ kubectl -n venue-booking get daemonset fluent-bit -o wide
+NAME         DESIRED   CURRENT   READY   UP-TO-DATE   AVAILABLE   NODE SELECTOR            AGE     CONTAINERS   IMAGES                    SELECTOR
+fluent-bit   1         1         1       1            1           kubernetes.io/os=linux   2m45s   fluent-bit   fluent/fluent-bit:5.1.5   app.kubernetes.io/name=fluent-bit
+
+$ kubectl -n venue-booking get pods -l app.kubernetes.io/name=fluent-bit -o wide
+NAME               READY   STATUS    RESTARTS   AGE     IP            NODE       NOMINATED NODE   READINESS GATES
+fluent-bit-2tvks   1/1     Running   0          2m46s   10.244.0.27   minikube   <none>           <none>
+
+$ kubectl get nodes
+NAME       STATUS   ROLES           AGE   VERSION
+minikube   Ready    control-plane   68m   v1.37.0
+
+$ kubectl -n venue-booking logs ds/fluent-bit | grep '"pod_name":"api-' | tail -2
+{"date":1794423365.104989,"time":"2026-11-11T18:56:05.104988633Z","stream":"stdout","_p":"F","log":"GET /api/reports/2 200 2ms X-Served-By=api-c8779bc78-6rkp8","kubernetes":{"pod_name":"api-c8779bc78-6rkp8","namespace_name":"venue-booking","container_name":"api","docker_id":"6a4f80b8f2ed4a6a12affda3439636c9218b45e343941fff28a5e6b378f5d7da"}}
+{"date":1794423425.239706,"time":"2026-11-11T18:57:05.239705807Z","stream":"stdout","_p":"F","log":"GET /api/reports 200 4ms X-Served-By=api-c8779bc78-6rkp8","kubernetes":{"pod_name":"api-c8779bc78-6rkp8","namespace_name":"venue-booking","container_name":"api","docker_id":"6a4f80b8f2ed4a6a12affda3439636c9218b45e343941fff28a5e6b378f5d7da"}}
+
+$ kubectl -n venue-booking logs ds/fluent-bit | grep '"container_name":"report"' | tail -2
+{"date":1794423360.722545,"time":"2026-11-11T18:56:00.722544864Z","stream":"stdout","_p":"F","log":"Report 1: succeeded","kubernetes":{"pod_name":"venue-report-29907056-7pz75","namespace_name":"venue-booking","container_name":"report","docker_id":"785c06c5ded4b0370e88c3d5b27e99f53a063256bb021c3aace62b590febb2a8"}}
+{"date":1794423363.640532,"time":"2026-11-11T18:56:03.640531603Z","stream":"stdout","_p":"F","log":"Report 2: succeeded","kubernetes":{"pod_name":"venue-report-manual-2-6a6b8-zqlqg","namespace_name":"venue-booking","container_name":"report","docker_id":"5479aab23d698ca3c314f79fab3d869b19fcf968a5e51988fe56f19a6d80083f"}}
+
