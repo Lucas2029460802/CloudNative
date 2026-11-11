@@ -3,6 +3,9 @@
   "ignore": [".agents/**", ".claude/**", "apps/web/src/components/ui/**"],
   "ignoreDependencies": ["@playwright/cli"],
   "workspaces": {
+    "apps/api": {
+      "entry": ["src/report.ts"]
+    },
     ".": {
       "entry": ["tests/**/*.ts"]
     }

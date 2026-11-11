@@ -15,7 +15,7 @@ RUN bun install --frozen-lockfile --production --filter @venue/api
 
 COPY packages/contracts/ packages/contracts/
 COPY apps/api/ apps/api/
-# Bun bundles the API and all of its dependencies into dist/server.js.
+# Bun bundles the API and report worker with their dependencies into dist/server.js and dist/report.js.
 RUN bun run --cwd apps/api build
 
 # ---- Runtime stage: Node.js with only the bundle and the SQL migrations ----
