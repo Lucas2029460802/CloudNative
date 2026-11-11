@@ -2,10 +2,12 @@ import { oc } from "@orpc/contract"
 import { z } from "zod"
 
 import {
+  CreateReportInputSchema,
   CreateReservationInputSchema,
   CreateVenueInputSchema,
   IdParamsSchema,
   ListReservationsQuerySchema,
+  ReportSchema,
   ReservationConflictSchema,
   ReservationSchema,
   TimeOfDaySchema,
@@ -42,9 +44,19 @@ export const apiErrors = {
     message: "The requested time overlaps an existing reservation",
     data: z.object({ conflicts: z.array(ReservationConflictSchema) }),
   },
+  REPORT_NOT_FOUND: { status: 404, message: "Report not found" },
+  REPORT_RUNNER_UNAVAILABLE: {
+    status: 503,
+    message: "The report could not be started; try again later",
+  },
 } as const
 
-const { VENUE_NOT_FOUND, RESERVATION_NOT_FOUND } = apiErrors
+const {
+  VENUE_NOT_FOUND,
+  RESERVATION_NOT_FOUND,
+  REPORT_NOT_FOUND,
+  REPORT_RUNNER_UNAVAILABLE,
+} = apiErrors
 
 /** REST contract shared by the API (implementation) and the web app (typed client). */
 export const contract = {
@@ -125,5 +137,39 @@ export const contract = {
       .errors({ RESERVATION_NOT_FOUND })
       .input(IdParamsSchema)
       .output(ReservationSchema),
+  },
+  reports: {
+    list: oc
+      .route({
+        method: "GET",
+        path: "/reports",
+        summary: "List utilisation reports",
+        description: "The 50 most recent reports, newest first.",
+        tags: ["Reports"],
+      })
+      .output(z.array(ReportSchema)),
+    get: oc
+      .route({
+        method: "GET",
+        path: "/reports/{id}",
+        summary: "Get a utilisation report",
+        tags: ["Reports"],
+      })
+      .errors({ REPORT_NOT_FOUND })
+      .input(IdParamsSchema)
+      .output(ReportSchema),
+    create: oc
+      .route({
+        method: "POST",
+        path: "/reports",
+        successStatus: 202,
+        summary: "Request a utilisation report",
+        description:
+          "Counts confirmed reservations and booked minutes per venue between `from` and `to` (inclusive). The report runs asynchronously, as a Kubernetes Job when deployed on Kubernetes; poll `GET /reports/{id}` until its status is `succeeded` or `failed`.",
+        tags: ["Reports"],
+      })
+      .errors({ REPORT_RUNNER_UNAVAILABLE })
+      .input(CreateReportInputSchema)
+      .output(ReportSchema),
   },
 }

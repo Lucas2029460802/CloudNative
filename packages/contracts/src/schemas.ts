@@ -103,3 +103,62 @@ export const ReservationConflictSchema = z.object({
   startTime: TimeOfDaySchema,
   endTime: TimeOfDaySchema,
 })
+
+/** Longest date range one utilisation report may cover, in days (inclusive). */
+export const MAX_REPORT_DAYS = 366
+
+export const ReportStatusSchema = z.enum([
+  "pending",
+  "running",
+  "succeeded",
+  "failed",
+])
+export type ReportStatus = z.infer<typeof ReportStatusSchema>
+
+/** `manual`: requested through the API. `scheduled`: written by the CronJob. */
+export const ReportTriggerSchema = z.enum(["manual", "scheduled"])
+
+/** Utilisation of one venue within the report's date range. */
+export const VenueUtilisationSchema = z.object({
+  venueId: z.number().int(),
+  venueName: z.string(),
+  reservationCount: z.number().int(),
+  bookedMinutes: z.number().int(),
+})
+export type VenueUtilisation = z.infer<typeof VenueUtilisationSchema>
+
+export const ReportSchema = z.object({
+  id: z.number().int(),
+  trigger: ReportTriggerSchema,
+  /** First and last calendar date covered, both inclusive. */
+  from: CalendarDateSchema,
+  to: CalendarDateSchema,
+  status: ReportStatusSchema,
+  /** Kubernetes Job that runs the report; null when it ran inside the API process. */
+  jobName: z.string().nullable(),
+  createdAt: z.iso.datetime(),
+  startedAt: z.iso.datetime().nullable(),
+  finishedAt: z.iso.datetime().nullable(),
+  error: z.string().nullable(),
+  /** Every venue, including those without reservations; null until the report succeeds. */
+  results: z.array(VenueUtilisationSchema).nullable(),
+})
+export type Report = z.infer<typeof ReportSchema>
+
+const DAY_MS = 86_400_000
+
+export const CreateReportInputSchema = z
+  .object({ from: CalendarDateSchema, to: CalendarDateSchema })
+  .refine((range) => range.from <= range.to, {
+    path: ["to"],
+    message: "End date must not be earlier than start date",
+  })
+  .refine(
+    (range) =>
+      (Date.parse(range.to) - Date.parse(range.from)) / DAY_MS <
+      MAX_REPORT_DAYS,
+    {
+      path: ["to"],
+      message: `A report covers at most ${MAX_REPORT_DAYS} days`,
+    }
+  )
