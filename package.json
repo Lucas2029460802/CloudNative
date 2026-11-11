@@ -26,14 +26,14 @@
   "devDependencies": {
     "@axe-core/playwright": "^4.14.0",
     "@lhci/cli": "^0.15.1",
-    "@playwright/cli": "^0.1.22",
-    "@playwright/test": "^1.64.1",
+    "@playwright/cli": "^0.1.24",
+    "@playwright/test": "^1.65.0",
     "@types/node": "^26.6.6",
-    "knip": "^6.44.1",
+    "knip": "^6.45.1",
     "oxfmt": "^0.75.0",
-    "oxlint": "^1.90.0",
+    "oxlint": "^1.93.0",
     "typescript": "^7.0.2",
-    "vitest": "^5.0.5"
+    "vitest": "^5.1.0"
   },
   "overrides": {
     "@esbuild-kit/esm-loader": "npm:tsx@^4.23.15",
