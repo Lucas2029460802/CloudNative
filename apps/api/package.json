@@ -6,7 +6,7 @@
     "dev": "tsx watch --env-file-if-exists=../../.env src/server.ts",
     "build": "bun build src/server.ts --target=node --outdir=dist",
     "start": "node dist/server.js",
-    "typecheck": "tsc --noEmit",
+    "typecheck": "tsc -b",
     "db:generate": "drizzle-kit generate"
   },
   "dependencies": {

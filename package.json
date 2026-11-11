@@ -10,7 +10,7 @@
     "dev": "bun run --filter \"@venue/*\" dev",
     "dev:db": "docker compose -f compose.yaml -f compose.dev.yaml up -d database",
     "build": "bun run --filter \"@venue/*\" build",
-    "typecheck": "bun run --filter \"@venue/*\" typecheck && tsc --noEmit",
+    "typecheck": "bun run --filter \"@venue/*\" typecheck && tsc -b",
     "lint": "oxlint",
     "format": "oxfmt",
     "format:check": "oxfmt --check",

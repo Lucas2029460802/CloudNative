@@ -2,6 +2,7 @@
   // Standalone (not extending the root config): the Docker builds copy only
   // packages/contracts and the app they build.
   "compilerOptions": {
+    "tsBuildInfoFile": "./node_modules/.tmp/tsconfig.tsbuildinfo",
     "target": "ESNext",
     "lib": ["ESNext"],
     "module": "Preserve",
