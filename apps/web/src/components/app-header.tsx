@@ -33,7 +33,7 @@ function NavLink({
   active,
   children,
 }: {
-  to: "/" | "/reservations"
+  to: "/" | "/reservations" | "/reports"
   active: boolean
   children: ReactNode
 }) {
@@ -91,6 +91,7 @@ export function AppHeader() {
     select: (state) => state.location.pathname,
   })
   const onReservations = pathname.startsWith("/reservations")
+  const onReports = pathname.startsWith("/reports")
 
   return (
     <header className="border-b border-board-foreground/10 bg-board text-board-foreground">
@@ -107,11 +108,14 @@ export function AppHeader() {
           aria-label={t("app.nav.label")}
           className="order-last col-span-2 flex items-center gap-1 sm:order-none"
         >
-          <NavLink to="/" active={!onReservations}>
+          <NavLink to="/" active={!onReservations && !onReports}>
             {t("app.nav.venues")}
           </NavLink>
           <NavLink to="/reservations" active={onReservations}>
             {t("app.nav.reservations")}
+          </NavLink>
+          <NavLink to="/reports" active={onReports}>
+            {t("app.nav.reports")}
           </NavLink>
         </nav>
         <div className="ml-auto flex items-center gap-0.5">

@@ -10,6 +10,7 @@
 
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as IndexRouteImport } from './routes/index'
+import { Route as ReportsIndexRouteImport } from './routes/reports/index'
 import { Route as ReservationsIndexRouteImport } from './routes/reservations/index'
 import { Route as ReservationsReservationIdRouteImport } from './routes/reservations/$reservationId'
 import { Route as VenuesVenueIdRouteImport } from './routes/venues/$venueId'
@@ -18,6 +19,11 @@ import { Route as VenuesNewRouteImport } from './routes/venues/new'
 const IndexRoute = IndexRouteImport.update({
   id: '/',
   path: '/',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ReportsIndexRoute = ReportsIndexRouteImport.update({
+  id: '/reports/',
+  path: '/reports/',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ReservationsIndexRoute = ReservationsIndexRouteImport.update({
@@ -47,6 +53,7 @@ export interface FileRoutesByFullPath {
   '/reservations/$reservationId': typeof ReservationsReservationIdRoute
   '/venues/$venueId': typeof VenuesVenueIdRoute
   '/venues/new': typeof VenuesNewRoute
+  '/reports/': typeof ReportsIndexRoute
   '/reservations/': typeof ReservationsIndexRoute
 }
 export interface FileRoutesByTo {
@@ -54,6 +61,7 @@ export interface FileRoutesByTo {
   '/reservations/$reservationId': typeof ReservationsReservationIdRoute
   '/venues/$venueId': typeof VenuesVenueIdRoute
   '/venues/new': typeof VenuesNewRoute
+  '/reports': typeof ReportsIndexRoute
   '/reservations': typeof ReservationsIndexRoute
 }
 export interface FileRoutesById {
@@ -62,6 +70,7 @@ export interface FileRoutesById {
   '/reservations/$reservationId': typeof ReservationsReservationIdRoute
   '/venues/$venueId': typeof VenuesVenueIdRoute
   '/venues/new': typeof VenuesNewRoute
+  '/reports/': typeof ReportsIndexRoute
   '/reservations/': typeof ReservationsIndexRoute
 }
 export interface FileRouteTypes {
@@ -71,6 +80,7 @@ export interface FileRouteTypes {
     | '/reservations/$reservationId'
     | '/venues/$venueId'
     | '/venues/new'
+    | '/reports/'
     | '/reservations/'
   fileRoutesByTo: FileRoutesByTo
   to:
@@ -78,6 +88,7 @@ export interface FileRouteTypes {
     | '/reservations/$reservationId'
     | '/venues/$venueId'
     | '/venues/new'
+    | '/reports'
     | '/reservations'
   id:
     | '__root__'
@@ -85,6 +96,7 @@ export interface FileRouteTypes {
     | '/reservations/$reservationId'
     | '/venues/$venueId'
     | '/venues/new'
+    | '/reports/'
     | '/reservations/'
   fileRoutesById: FileRoutesById
 }
@@ -93,6 +105,7 @@ export interface RootRouteChildren {
   ReservationsReservationIdRoute: typeof ReservationsReservationIdRoute
   VenuesVenueIdRoute: typeof VenuesVenueIdRoute
   VenuesNewRoute: typeof VenuesNewRoute
+  ReportsIndexRoute: typeof ReportsIndexRoute
   ReservationsIndexRoute: typeof ReservationsIndexRoute
 }
 
@@ -103,6 +116,13 @@ declare module '@tanstack/react-router' {
       path: '/'
       fullPath: '/'
       preLoaderRoute: typeof IndexRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/reports/': {
+      id: '/reports/'
+      path: '/reports'
+      fullPath: '/reports/'
+      preLoaderRoute: typeof ReportsIndexRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/reservations/': {
@@ -141,6 +161,7 @@ const rootRouteChildren: RootRouteChildren = {
   ReservationsReservationIdRoute: ReservationsReservationIdRoute,
   VenuesVenueIdRoute: VenuesVenueIdRoute,
   VenuesNewRoute: VenuesNewRoute,
+  ReportsIndexRoute: ReportsIndexRoute,
   ReservationsIndexRoute: ReservationsIndexRoute,
 }
 export const routeTree = rootRouteImport

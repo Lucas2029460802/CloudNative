@@ -5,6 +5,7 @@ const dateStyles = {
   weekday: { weekday: "short" },
   dayMonth: { month: "short", day: "numeric" },
   medium: { weekday: "short", month: "short", day: "numeric" },
+  short: { year: "numeric", month: "short", day: "numeric" },
   long: { weekday: "long", year: "numeric", month: "long", day: "numeric" },
 } satisfies Record<string, Intl.DateTimeFormatOptions>
 
