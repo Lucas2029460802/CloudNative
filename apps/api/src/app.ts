@@ -8,12 +8,15 @@ import { Hono } from "hono"
 
 import type { Database } from "./db/client"
 import { os } from "./routers/base"
+import type { ReportLauncher } from "./reports/launcher"
+import { reportsRouter } from "./routers/reports"
 import { reservationsRouter } from "./routers/reservations"
 import { venuesRouter } from "./routers/venues"
 
 const router = os.router({
   venues: venuesRouter,
   reservations: reservationsRouter,
+  reports: reportsRouter,
 })
 
 type AppOptions = {
@@ -21,6 +24,7 @@ type AppOptions = {
   timeZone: string
   now?: () => Date
   logRequests?: boolean
+  reportLauncher?: ReportLauncher
 }
 
 export function createApp({
@@ -28,6 +32,7 @@ export function createApp({
   timeZone,
   now = () => new Date(),
   logRequests = false,
+  reportLauncher,
 }: AppOptions) {
   const handler = new OpenAPIHandler(router, {
     plugins: [
@@ -107,7 +112,7 @@ export function createApp({
   app.use("/api/*", async (c, next) => {
     const { matched, response } = await handler.handle(c.req.raw, {
       prefix: "/api",
-      context: { db, timeZone, now },
+      context: { db, timeZone, now, reportLauncher },
     })
     if (matched) return c.newResponse(response.body, response)
     await next()

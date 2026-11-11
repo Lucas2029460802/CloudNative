@@ -5,6 +5,7 @@ import { createApp } from "./app"
 import { loadConfig } from "./config"
 import { createDatabase, waitForDatabase } from "./db/client"
 import { prepareDatabase } from "./db/prepare"
+import { createKubernetesLauncher } from "./reports/launcher"
 
 const config = loadConfig()
 const db = createDatabase(config.DATABASE_URL)
@@ -20,6 +21,14 @@ const app = createApp({
   db,
   timeZone: config.APP_TIME_ZONE,
   logRequests: true,
+  reportLauncher:
+    config.REPORT_RUNNER === "kubernetes"
+      ? createKubernetesLauncher({
+          host: config.KUBERNETES_SERVICE_HOST,
+          port: config.KUBERNETES_SERVICE_PORT,
+          cronJobName: config.REPORT_CRONJOB_NAME,
+        })
+      : undefined,
 })
 
 const server = serve(
