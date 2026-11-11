@@ -1,0 +1,28 @@
+# Mounted into the pod as fluent-bit.yaml (see configMapGenerator in kustomization.yaml).
+service:
+  flush: 1
+  log_level: info
+
+pipeline:
+  inputs:
+    - name: tail
+      path: /var/log/containers/*_venue-booking_*.log
+      # Fluent Bit's own stdout is a container log too; tailing it would feed back into itself.
+      exclude_path: /var/log/containers/fluent-bit-*
+      tag: kube.*
+      multiline.parser: cri
+      # Pick up new pods (api rollouts, report Jobs) within seconds instead of the 60 s default.
+      refresh_interval: 5
+      read_from_head: true
+
+  filters:
+    # Metadata comes from the file name (tag), so no API calls, ServiceAccount token or RBAC.
+    - name: kubernetes
+      match: kube.*
+      kube_tag_prefix: kube.var.log.containers.
+      use_tag_for_meta: on
+
+  outputs:
+    - name: stdout
+      match: "*"
+      format: json_lines

@@ -10,6 +10,7 @@ resources:
   - api.yaml
   - web.yaml
   - report-cronjob.yaml
+  - fluent-bit.yaml
 
 # Images are built by Compose and loaded with `minikube image load`.
 # Bump newTag together with IMAGE_TAG on every rebuild: a new tag is the only way to roll pods.
@@ -24,6 +25,9 @@ configMapGenerator:
   - name: app-config
     envs:
       - config.env
+  - name: fluent-bit-config
+    files:
+      - fluent-bit.yaml=fluent-bit-pipeline.yaml
 
 secretGenerator:
   - name: postgres-credentials
