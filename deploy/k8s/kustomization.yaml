@@ -1,0 +1,35 @@
+# Deploy with: kubectl apply -k deploy/k8s   (needs secret.env, see secret.env.example)
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+namespace: venue-booking
+
+resources:
+  - namespace.yaml
+  - postgres.yaml
+  - api.yaml
+  - web.yaml
+
+# Images are built by Compose and loaded with `minikube image load`.
+# Bump newTag together with IMAGE_TAG on every rebuild: a new tag is the only way to roll pods.
+images:
+  - name: venue-booking/api
+    newTag: 2.0.0
+  - name: venue-booking/frontend
+    newTag: 2.0.0
+
+# Generated names carry a content hash, so editing a file rolls the pods that use it.
+configMapGenerator:
+  - name: app-config
+    envs:
+      - config.env
+
+secretGenerator:
+  - name: postgres-credentials
+    envs:
+      - secret.env
+
+labels:
+  - pairs:
+      app.kubernetes.io/part-of: venue-booking
+    includeTemplates: true

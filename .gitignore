@@ -15,3 +15,6 @@ test-results/
 playwright-report/
 blob-report/
 .lighthouseci/
+
+# Real credentials for the Kubernetes deployment (copy deploy/k8s/secret.env.example)
+deploy/k8s/secret.env

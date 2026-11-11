@@ -33,3 +33,6 @@ blob-report
 .lighthouseci
 **/*.log
 **/*.md
+
+# Kubernetes manifests and credentials are not part of either image
+deploy/k8s
