@@ -2,15 +2,16 @@
 
 [English](README.en.md) | [简体中文](README.md)
 
-A full-stack venue booking system developed for _CS30074 Cloud-Native Software Technology, Lab 1_, at Fudan University.
+A full-stack venue booking system developed for _CS30074 Cloud-Native Software Technology, Labs 1 and 2_, at Fudan University.
 
-People pick a day, see when each campus venue is free, book a time slot, and get a reservation number they can use to look up or cancel the booking. The frontend, the Web API, and PostgreSQL each run in their own container under Docker Compose.
+People pick a day, see when each campus venue is free, book a time slot, and get a reservation number they can use to look up or cancel the booking. The frontend, the Web API, and PostgreSQL each run in their own container under Docker Compose; the same images also deploy to Kubernetes (minikube).
 
 - Booking board: every venue's day on one time axis, with booked, closed, and past time marked
 - Venue page: click a start and an end slot (or pick times), enter who is booking and why, and book
 - Confirmation slip with the reservation number; cancellation with confirmation
 - Reservation list with search by name or purpose and filters by status, venue, and date
 - Add venues; disabled venues stay visible but cannot be booked
+- Utilisation reports (Reports page): confirmed reservations and booked minutes per venue over a date range. On Kubernetes each report runs as a Job, a CronJob generates scheduled ones, and a Fluent Bit DaemonSet collects container logs
 - English and Simplified Chinese, light and dark themes, works on phones
 
 ## Architecture
@@ -33,20 +34,22 @@ Browser ──HTTP :8080──▶ frontend (nginx)          static React build
 
 The browser only talks to the frontend origin, so no CORS setup is needed and the API base URL needs no build-time configuration. The frontend container is not attached to `backend-net`: it cannot resolve or reach the database.
 
+On Kubernetes, `web` and `api` are Deployments, `postgres` is a StatefulSet with a PVC, `venue-report` is a CronJob, and `fluent-bit` is a DaemonSet, all in the `venue-booking` namespace. See "Run on Kubernetes (minikube)".
+
 ## Tech stack
 
-| Layer                | Technologies                                   |
-| -------------------- | ---------------------------------------------- |
-| Frontend             | React 19, TypeScript, Vite 8                   |
-| Routing & data       | TanStack Router, TanStack Query, TanStack Form |
-| UI & styling         | shadcn/ui, Base UI, Tailwind CSS v4            |
-| Internationalization | i18next, react-i18next                         |
-| Backend              | Node.js, Hono, oRPC, Zod                       |
-| Database             | PostgreSQL 18, Drizzle ORM                     |
-| Package management   | Bun Workspaces                                 |
-| Code quality         | Oxlint, Oxfmt, Knip                            |
-| Testing              | Vitest, Playwright, axe-core, Lighthouse CI    |
-| Infrastructure       | Docker, Docker Compose, Nginx                  |
+| Layer                | Technologies                                                                |
+| -------------------- | --------------------------------------------------------------------------- |
+| Frontend             | React 19, TypeScript, Vite 8                                                |
+| Routing & data       | TanStack Router, TanStack Query, TanStack Form                              |
+| UI & styling         | shadcn/ui, Base UI, Tailwind CSS v4                                         |
+| Internationalization | i18next, react-i18next                                                      |
+| Backend              | Node.js, Hono, oRPC, Zod                                                    |
+| Database             | PostgreSQL 18, Drizzle ORM                                                  |
+| Package management   | Bun Workspaces                                                              |
+| Code quality         | Oxlint, Oxfmt, Knip                                                         |
+| Testing              | Vitest, Playwright, axe-core, Lighthouse CI                                 |
+| Infrastructure       | Docker, Docker Compose, Nginx, Kubernetes (minikube), Kustomize, Fluent Bit |
 
 ## Repository structure
 
@@ -57,25 +60,28 @@ The browser only talks to the frontend origin, so no CORS setup is needed and th
 │   │   ├── drizzle/          # SQL migrations (generated + exclusion constraint)
 │   │   └── src/
 │   │       ├── db/           # Drizzle schema, connection, migrations, seed data
+│   │       ├── reports/      # Report computation and storage, Kubernetes Job launcher
 │   │       ├── routers/      # Endpoint handlers and business rules
 │   │       ├── app.ts        # HTTP app: /api routes, health check, error handling
+│   │       ├── report.ts     # Job entry point: run one report, then exit
 │   │       └── server.ts     # Entry point: config, migrate, seed, listen
 │   └── web/                  # React frontend
 │       └── src/
 │           ├── routes/       # File-based routes (TanStack Router)
-│           ├── features/     # Venue board, booking, reservations
+│           ├── features/     # Venue board, booking, reservations, utilisation reports (reports/)
 │           ├── components/   # Shared UI (shadcn/ui components in ui/)
 │           ├── locales/      # English and Simplified Chinese strings
 │           └── lib/          # API client, time and format helpers, i18n
 ├── packages/contracts/       # API contract and Zod schemas shared by api and web
 ├── deploy/
 │   ├── api/Dockerfile        # Multi-stage API image
+│   ├── k8s/                  # Kubernetes manifests (Kustomize) and deployment guide
 │   └── web/                  # Multi-stage frontend image + nginx config template
 ├── tests/                    # unit/, integration/ (Vitest), e2e/ (Playwright)
 ├── compose.yaml              # frontend, api, database
 ├── compose.dev.yaml          # Development override: publishes PostgreSQL on 127.0.0.1
 ├── .env.example              # Configuration template
-└── docs/lab-1.md             # Lab specification
+└── docs/                     # Lab specifications and reports
 ```
 
 ## Run with Docker Compose
@@ -134,12 +140,20 @@ Docker Compose reads `.env` from the repository root. `.env` is ignored by Git; 
 
 Inside Compose the API receives `DATABASE_URL=postgres://$POSTGRES_USER:$POSTGRES_PASSWORD@database:5432/$POSTGRES_DB`, where `database` is the Compose service name. No password is stored in the source code or in an image.
 
+The API also reads these optional report variables, which are not in `.env`. Compose does not set them, so reports run inside the API process (`inline`); `deploy/k8s/config.env` sets `kubernetes`.
+
+| Variable              | Default        | Purpose                                                                                       |
+| --------------------- | -------------- | --------------------------------------------------------------------------------------------- |
+| `REPORT_RUNNER`       | `inline`       | `inline`: generate the report inside the API process; `kubernetes`: create one Job per report |
+| `REPORT_CRONJOB_NAME` | `venue-report` | In `kubernetes` mode, the CronJob whose Job template manual report Jobs are copied from       |
+| `REPORT_WINDOW_DAYS`  | `7`            | Days, starting today, that a scheduled report covers (1 to 366)                               |
+
 ### Images
 
 Both Dockerfiles use the repository root as build context and a root `.dockerignore` that excludes `node_modules`, build output, `.env` files, Git data, tests, and docs.
 
-- `deploy/api/Dockerfile`: stage one (`oven/bun:1.4.4-alpine`) installs only the API's workspace dependencies from the lockfile and bundles the API with `bun build` into a single `dist/server.js`. The runtime stage (`node:24.22.1-alpine3.24`) contains just that bundle and the SQL migrations: no source code, `node_modules`, or build tools. It runs as the unprivileged `node` user and listens on port 3000.
-- `deploy/web/Dockerfile`: stage one builds the React app with Vite. The runtime stage (`nginxinc/nginx-unprivileged:1.30.6-alpine3.24`) serves the static files as uid 101 on port 8080, proxies `/api/` to `API_UPSTREAM` (default `http://api:3000`), and falls back to `index.html` for client-side routes. The proxy resolves the API host per request, so a recreated API container is found again.
+- `deploy/api/Dockerfile`: stage one (`oven/bun:1.4.4-alpine`) installs only the API's workspace dependencies from the lockfile and bundles the API and the report worker with `bun build` into `dist/server.js` and `dist/report.js`. The runtime stage (`node:26.13.0-alpine3.24`) contains just those bundles and the SQL migrations: no source code, `node_modules`, or build tools. It runs as the unprivileged `node` user and listens on port 3000.
+- `deploy/web/Dockerfile`: stage one builds the React app with Vite. The runtime stage (`nginxinc/nginx-unprivileged:1.31.7-alpine3.24`) serves the static files as uid 101 on port 8080, proxies `/api/` to `API_UPSTREAM` (default `http://api:3000`), and falls back to `index.html` for client-side routes. The proxy resolves the API host per request, so a recreated API container is found again.
 
 To build an image on its own:
 
@@ -151,9 +165,23 @@ docker build -f deploy/api/Dockerfile -t venue-booking/api:1.0.0 .
 docker build -f deploy/web/Dockerfile -t venue-booking/frontend:1.0.0 .
 ```
 
+## Run on Kubernetes (minikube)
+
+Prerequisites: minikube v1.39 (`minikube start`; verified on Kubernetes v1.37), kubectl, Docker, and `.env` in the repository root (Compose needs it to build the images). Run the commands in Git Bash or WSL.
+
+```bash
+IMAGE_TAG=2.0.0 docker compose build api frontend
+minikube image load venue-booking/api:2.0.0 venue-booking/frontend:2.0.0
+cp deploy/k8s/secret.env.example deploy/k8s/secret.env
+kubectl apply -k deploy/k8s
+minikube service web -n venue-booking --url
+```
+
+Change the database password in `secret.env` first. The last command prints the web UI address; on Windows keep that terminal open. Step-by-step verification (replicas, Jobs, CronJob, DaemonSet, PVC, RBAC), rebuilding, and tear-down are in [deploy/k8s/README.md](deploy/k8s/README.md).
+
 ## Local development
 
-Prerequisites: [Bun](https://bun.sh) 1.4, Node.js 24, Docker.
+Prerequisites: [Bun](https://bun.sh) 1.4, Node.js 26, Docker.
 
 ```bash
 bun install
@@ -199,9 +227,16 @@ All endpoints use JSON and live under `/api`. The full schema is served at `/api
 | GET    | `/api/reservations/{id}`        | Reservation details                | 200     | 400, 404                      |
 | POST   | `/api/reservations`             | Create a reservation               | 201     | 400, 404, 409                 |
 | POST   | `/api/reservations/{id}/cancel` | Cancel a reservation               | 200     | 400, 404                      |
+| GET    | `/api/reports`                  | The 50 latest utilisation reports  | 200     |                               |
+| GET    | `/api/reports/{id}`             | Report with per-venue results      | 200     | 400, 404                      |
+| POST   | `/api/reports`                  | Request a report (asynchronous)    | 202     | 400, 503                      |
 | GET    | `/api/health`                   | Liveness and database connectivity | 200     | 503 when the database is down |
 
 `GET /api/reservations` accepts optional query parameters, combined with AND: `venueId`, `date` (exact day), `from` (on or after), `status` (`confirmed` or `cancelled`), and `q` (case-insensitive search in booker name and purpose). Results are sorted by date and start time.
+
+Every response carries an `X-Served-By` header with the host name of the API instance that handled it (the pod name on Kubernetes); request logs record it too.
+
+`POST /api/reports` takes `{"from":"2026-11-12","to":"2026-11-18"}` (both ends inclusive, at most 366 days). A report's `status` goes `pending`, `running`, then `succeeded` or `failed`, so poll `GET /api/reports/{id}`; `results` lists `reservationCount` and `bookedMinutes` for every venue.
 
 Create a venue:
 
@@ -244,18 +279,20 @@ Errors share one JSON shape and never include stack traces. Unexpected failures 
 }
 ```
 
-| Code                    | Status | When                                                                      |
-| ----------------------- | ------ | ------------------------------------------------------------------------- |
-| `BAD_REQUEST`           | 400    | Malformed JSON or invalid fields; `data.issues` lists `{ path, message }` |
-| `VENUE_DISABLED`        | 400    | The venue's status is `disabled`                                          |
-| `OUTSIDE_OPENING_HOURS` | 400    | The time range is not within the venue's opening hours                    |
-| `RESERVATION_IN_PAST`   | 400    | The reservation starts at or before the current time                      |
-| `CAPACITY_EXCEEDED`     | 400    | `attendeeCount` is larger than the venue's capacity                       |
-| `VENUE_NOT_FOUND`       | 404    | The venue does not exist                                                  |
-| `RESERVATION_NOT_FOUND` | 404    | The reservation does not exist                                            |
-| `NOT_FOUND`             | 404    | No such route                                                             |
-| `RESERVATION_CONFLICT`  | 409    | The range overlaps a confirmed reservation of the same venue              |
-| `INTERNAL_SERVER_ERROR` | 500    | Unexpected server error                                                   |
+| Code                        | Status | When                                                                      |
+| --------------------------- | ------ | ------------------------------------------------------------------------- |
+| `BAD_REQUEST`               | 400    | Malformed JSON or invalid fields; `data.issues` lists `{ path, message }` |
+| `VENUE_DISABLED`            | 400    | The venue's status is `disabled`                                          |
+| `OUTSIDE_OPENING_HOURS`     | 400    | The time range is not within the venue's opening hours                    |
+| `RESERVATION_IN_PAST`       | 400    | The reservation starts at or before the current time                      |
+| `CAPACITY_EXCEEDED`         | 400    | `attendeeCount` is larger than the venue's capacity                       |
+| `VENUE_NOT_FOUND`           | 404    | The venue does not exist                                                  |
+| `RESERVATION_NOT_FOUND`     | 404    | The reservation does not exist                                            |
+| `REPORT_NOT_FOUND`          | 404    | The report does not exist                                                 |
+| `NOT_FOUND`                 | 404    | No such route                                                             |
+| `RESERVATION_CONFLICT`      | 409    | The range overlaps a confirmed reservation of the same venue              |
+| `INTERNAL_SERVER_ERROR`     | 500    | Unexpected server error                                                   |
+| `REPORT_RUNNER_UNAVAILABLE` | 503    | The report could not be started (for example, creating the Job failed)    |
 
 ## Data model and booking rules
 
@@ -278,15 +315,15 @@ Dates and times are wall-clock values without a time zone. The API uses `APP_TIM
 
 ## Tests
 
-| Command                    | Scope                                                                                        | Needs                                                                   |
-| -------------------------- | -------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------- |
-| `bun run test:unit`        | Schemas, time helpers, configuration parsing                                                 | nothing                                                                 |
-| `bun run test:integration` | All endpoints against a real PostgreSQL, incl. conflicts, concurrency, DB constraint, errors | Docker (starts a throwaway PostgreSQL container) or `TEST_DATABASE_URL` |
-| `bun run test`             | Unit and integration tests                                                                   | as above                                                                |
-| `bun run test:e2e`         | Browser flows, accessibility (axe), API through the nginx proxy                              | a running stack and Chromium                                            |
-| `bun run test:lighthouse`  | Lighthouse CI on three pages (accessibility ≥ 0.95, best practices ≥ 0.9)                    | a running stack and Chrome                                              |
+| Command                    | Scope                                                                                                                   | Needs                                                                   |
+| -------------------------- | ----------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------- |
+| `bun run test:unit`        | Schemas, time helpers, configuration parsing, reports                                                                   | nothing                                                                 |
+| `bun run test:integration` | All endpoints against a real PostgreSQL, incl. conflicts, concurrency, DB constraint, errors, reports and Job launching | Docker (starts a throwaway PostgreSQL container) or `TEST_DATABASE_URL` |
+| `bun run test`             | Unit and integration tests                                                                                              | as above                                                                |
+| `bun run test:e2e`         | Browser flows (incl. Reports page), accessibility (axe), API through the nginx proxy                                    | a running stack and Chromium                                            |
+| `bun run test:lighthouse`  | Lighthouse CI on three pages (accessibility ≥ 0.95, best practices ≥ 0.9)                                               | a running stack and Chrome                                              |
 
-End-to-end tests default to <http://localhost:8080>. They add a test venue and bookings, so point them at a disposable stack:
+End-to-end tests default to <http://localhost:8080>. Set `E2E_BASE_URL` to run them against either stack: Compose, or the address printed by `minikube service web -n venue-booking --url`. On Kubernetes reports run as Jobs, so the report test waits longer. They add a test venue and bookings, so point them at a disposable stack:
 
 ```bash
 bunx playwright install chromium
@@ -356,6 +393,10 @@ docker volume ls
 ```
 
 The output lists `venue-booking_database-data`.
+
+## Lab 2 acceptance
+
+The deployment, verification steps, and screenshot evidence are in [docs/lab-2-report.md](docs/lab-2-report.md); the lab specification is [docs/lab-2.md](docs/lab-2.md). The cluster commands to reproduce each check are in [deploy/k8s/README.md](deploy/k8s/README.md).
 
 ## Troubleshooting
 

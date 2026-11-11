@@ -2,15 +2,16 @@
 
 [English](README.en.md) | [简体中文](README.md)
 
-复旦大学《CS30074 云原生软件技术》实验一的全栈场地预约系统。
+复旦大学《CS30074 云原生软件技术》实验一、实验二的全栈场地预约系统。
 
-用户选择日期，查看各场地何时空闲，预约时段，并获得预约编号，之后可凭编号查询或取消预约。前端、Web API 和 PostgreSQL 分别运行在独立容器中，由 Docker Compose 编排。
+用户选择日期，查看各场地何时空闲，预约时段，并获得预约编号，之后可凭编号查询或取消预约。前端、Web API 和 PostgreSQL 分别运行在独立容器中，由 Docker Compose 编排；同一套镜像也可部署到 Kubernetes（minikube）。
 
 - 预约看板：所有场地的当天安排排在同一时间轴上，标出已预约、未开放和已过去的时间
 - 场地页面：先点选开始时段再点选结束时段（或直接选择时间），填写预约人和用途后提交
 - 预约成功后显示带预约编号的确认单；取消前需要再次确认
 - 预约记录：按预约人或用途搜索，并可按状态、场地和日期筛选
 - 新增场地；停用的场地仍会显示，但不能预约
+- 利用率报表（报表页）：统计日期范围内各场地的已确认预约数和已预约分钟数。在 Kubernetes 上每份报表由一个 Job 运行，另有 CronJob 定时生成；Fluent Bit DaemonSet 收集容器日志
 - 支持英文和简体中文、浅色和深色主题，适配手机
 
 ## 快速开始
@@ -49,20 +50,22 @@ docker compose up --build -d
 
 浏览器只访问前端所在的源，因此无需配置 CORS，也无需在构建时指定 API 地址。`frontend` 容器没有接入 `backend-net`，既解析不到也连不上数据库。
 
+在 Kubernetes 上，`web` 和 `api` 是 Deployment，`postgres` 是带 PVC 的 StatefulSet，`venue-report` 是 CronJob，`fluent-bit` 是 DaemonSet，全部位于 `venue-booking` 命名空间。见「使用 Kubernetes（minikube）运行」。
+
 ## 技术栈
 
-| 层次       | 技术                                           |
-| ---------- | ---------------------------------------------- |
-| 前端       | React 19、TypeScript、Vite 8                   |
-| 路由与数据 | TanStack Router、TanStack Query、TanStack Form |
-| UI 与样式  | shadcn/ui、Base UI、Tailwind CSS v4            |
-| 国际化     | i18next、react-i18next                         |
-| 后端       | Node.js、Hono、oRPC、Zod                       |
-| 数据库     | PostgreSQL 18、Drizzle ORM                     |
-| 包管理     | Bun Workspaces                                 |
-| 代码质量   | Oxlint、Oxfmt、Knip                            |
-| 测试       | Vitest、Playwright、axe-core、Lighthouse CI    |
-| 基础设施   | Docker、Docker Compose、Nginx                  |
+| 层次       | 技术                                                                         |
+| ---------- | ---------------------------------------------------------------------------- |
+| 前端       | React 19、TypeScript、Vite 8                                                 |
+| 路由与数据 | TanStack Router、TanStack Query、TanStack Form                               |
+| UI 与样式  | shadcn/ui、Base UI、Tailwind CSS v4                                          |
+| 国际化     | i18next、react-i18next                                                       |
+| 后端       | Node.js、Hono、oRPC、Zod                                                     |
+| 数据库     | PostgreSQL 18、Drizzle ORM                                                   |
+| 包管理     | Bun Workspaces                                                               |
+| 代码质量   | Oxlint、Oxfmt、Knip                                                          |
+| 测试       | Vitest、Playwright、axe-core、Lighthouse CI                                  |
+| 基础设施   | Docker、Docker Compose、Nginx、Kubernetes（minikube）、Kustomize、Fluent Bit |
 
 ## 目录结构
 
@@ -73,25 +76,28 @@ docker compose up --build -d
 │   │   ├── drizzle/          # SQL 迁移文件（自动生成 + 排他约束）
 │   │   └── src/
 │   │       ├── db/           # Drizzle 表结构、数据库连接、迁移、种子数据
+│   │       ├── reports/      # 报表计算与保存、Kubernetes Job 启动器
 │   │       ├── routers/      # 接口处理与业务规则
 │   │       ├── app.ts        # HTTP 应用：/api 路由、健康检查、错误处理
+│   │       ├── report.ts     # Job 入口：运行一份报表后退出
 │   │       └── server.ts     # 入口：读取配置、迁移、写入种子数据、启动监听
 │   └── web/                  # React 前端
 │       └── src/
 │           ├── routes/       # 基于文件的路由（TanStack Router）
-│           ├── features/     # 预约看板、预约流程、预约记录
+│           ├── features/     # 预约看板、预约流程、预约记录、利用率报表（reports/）
 │           ├── components/   # 通用组件（shadcn/ui 组件位于 ui/）
 │           ├── locales/      # 英文与简体中文文案
 │           └── lib/          # API 客户端、时间与格式化工具、i18n
 ├── packages/contracts/       # api 与 web 共用的接口契约和 Zod 校验规则
 ├── deploy/
 │   ├── api/Dockerfile        # API 多阶段构建镜像
+│   ├── k8s/                  # Kubernetes 清单（Kustomize）与部署说明
 │   └── web/                  # 前端多阶段构建镜像 + nginx 配置模板
 ├── tests/                    # unit/、integration/（Vitest），e2e/（Playwright）
 ├── compose.yaml              # frontend、api、database
 ├── compose.dev.yaml          # 开发用覆盖文件：把 PostgreSQL 发布到 127.0.0.1
 ├── .env.example              # 配置模板
-└── docs/lab-1.md             # 实验要求
+└── docs/                     # 实验要求与实验报告
 ```
 
 ## 使用 Docker Compose 运行
@@ -150,12 +156,20 @@ Docker Compose 会读取仓库根目录下的 `.env`。`.env` 已被 Git 忽略�
 
 在 Compose 中，API 收到的是 `DATABASE_URL=postgres://$POSTGRES_USER:$POSTGRES_PASSWORD@database:5432/$POSTGRES_DB`，其中 `database` 是数据库的服务名。源码和镜像中都不包含密码。
 
+API 还读取以下报表变量，均为可选，不在 `.env` 中。Compose 不设置它们，所以报表在 API 进程内运行（`inline`）；Kubernetes 的 `deploy/k8s/config.env` 则设为 `kubernetes`。
+
+| 变量                  | 默认值         | 用途                                                                      |
+| --------------------- | -------------- | ------------------------------------------------------------------------- |
+| `REPORT_RUNNER`       | `inline`       | `inline`：在 API 进程内同步生成报表；`kubernetes`：为每份报表创建一个 Job |
+| `REPORT_CRONJOB_NAME` | `venue-report` | `kubernetes` 模式下，手动报表 Job 以此 CronJob 的 Job 模板为蓝本          |
+| `REPORT_WINDOW_DAYS`  | `7`            | 定时报表从当天起统计的天数（1 至 366）                                    |
+
 ### 镜像
 
 两个 Dockerfile 都以仓库根目录为构建上下文，并共用根目录的 `.dockerignore`，排除 `node_modules`、构建产物、`.env` 文件、Git 数据、测试和文档。
 
-- `deploy/api/Dockerfile`：第一阶段（`oven/bun:1.4.4-alpine`）按锁文件只安装 API 所需的依赖，并用 `bun build` 把 API 打包成单个 `dist/server.js`。运行阶段（`node:24.22.1-alpine3.24`）只包含该文件和 SQL 迁移，没有源码、`node_modules` 或构建工具；以非 root 的 `node` 用户运行，监听 3000 端口。
-- `deploy/web/Dockerfile`：第一阶段用 Vite 构建 React 应用。运行阶段（`nginxinc/nginx-unprivileged:1.30.6-alpine3.24`）以 uid 101 在 8080 端口提供静态文件，把 `/api/` 转发到 `API_UPSTREAM`（默认 `http://api:3000`），并把前端路由回退到 `index.html`。代理在每次请求时解析 API 主机名，因此 API 容器重建后仍能连上。
+- `deploy/api/Dockerfile`：第一阶段（`oven/bun:1.4.4-alpine`）按锁文件只安装 API 所需的依赖，并用 `bun build` 把 API 和报表 Worker 分别打包成 `dist/server.js` 与 `dist/report.js`。运行阶段（`node:26.13.0-alpine3.24`）只包含这两个文件和 SQL 迁移，没有源码、`node_modules` 或构建工具；以非 root 的 `node` 用户运行，监听 3000 端口。
+- `deploy/web/Dockerfile`：第一阶段用 Vite 构建 React 应用。运行阶段（`nginxinc/nginx-unprivileged:1.31.7-alpine3.24`）以 uid 101 在 8080 端口提供静态文件，把 `/api/` 转发到 `API_UPSTREAM`（默认 `http://api:3000`），并把前端路由回退到 `index.html`。代理在每次请求时解析 API 主机名，因此 API 容器重建后仍能连上。
 
 单独构建镜像：
 
@@ -167,9 +181,23 @@ docker build -f deploy/api/Dockerfile -t venue-booking/api:1.0.0 .
 docker build -f deploy/web/Dockerfile -t venue-booking/frontend:1.0.0 .
 ```
 
+## 使用 Kubernetes（minikube）运行
+
+前置条件：minikube v1.39（`minikube start`，已在 Kubernetes v1.37 上验证）、kubectl、Docker，以及根目录的 `.env`（Compose 构建镜像时需要）。命令在 Git Bash 或 WSL 中执行。
+
+```bash
+IMAGE_TAG=2.0.0 docker compose build api frontend
+minikube image load venue-booking/api:2.0.0 venue-booking/frontend:2.0.0
+cp deploy/k8s/secret.env.example deploy/k8s/secret.env
+kubectl apply -k deploy/k8s
+minikube service web -n venue-booking --url
+```
+
+`secret.env` 中的数据库密码请先修改；最后一条命令打印的地址就是 Web 界面，Windows 上需保持该终端开着。逐项验证（多副本、Job、CronJob、DaemonSet、PVC、RBAC）、重新构建和清理见 [deploy/k8s/README.md](deploy/k8s/README.md)。
+
 ## 本地开发
 
-前置条件：[Bun](https://bun.sh) 1.4、Node.js 24、Docker。
+前置条件：[Bun](https://bun.sh) 1.4、Node.js 26、Docker。
 
 ```bash
 bun install
@@ -215,7 +243,14 @@ Vite 开发服务器会把 `/api` 转发给 API，与 Docker 中的 nginx 一致
 | GET  | `/api/reservations/{id}`        | 查询预约详情             | 200  | 400、404           |
 | POST | `/api/reservations`             | 创建预约                 | 201  | 400、404、409      |
 | POST | `/api/reservations/{id}/cancel` | 取消预约                 | 200  | 400、404           |
+| GET  | `/api/reports`                  | 最近 50 份利用率报表     | 200  |                    |
+| GET  | `/api/reports/{id}`             | 查询报表（含各场地结果） | 200  | 400、404           |
+| POST | `/api/reports`                  | 请求一份报表（异步）     | 202  | 400、503           |
 | GET  | `/api/health`                   | 存活及数据库连通性检查   | 200  | 数据库不可用时 503 |
+
+每个响应都带有 `X-Served-By` 头，值为处理请求的 API 主机名（在 Kubernetes 上即 Pod 名），请求日志中也会记录。
+
+`POST /api/reports` 的请求体为 `{"from":"2026-11-12","to":"2026-11-18"}`（含两端，最多 366 天）。报表的 `status` 依次为 `pending`、`running`，最终为 `succeeded` 或 `failed`，请轮询 `GET /api/reports/{id}`；`results` 列出每个场地的 `reservationCount` 和 `bookedMinutes`。创建 Job 失败时返回 503（`REPORT_RUNNER_UNAVAILABLE`），报表不存在时返回 404（`REPORT_NOT_FOUND`）。
 
 `GET /api/reservations` 支持以下可选查询参数（同时使用时取交集）：`venueId`、`date`（指定日期）、`from`（该日期及以后）、`status`（`confirmed` 或 `cancelled`）、`q`（在预约人和用途中不区分大小写搜索）。结果按日期和开始时间排序。
 
@@ -260,18 +295,20 @@ Vite 开发服务器会把 `/api` 转发给 API，与 Docker 中的 nginx 一致
 }
 ```
 
-| 错误码                  | 状态码 | 触发条件                                                          |
-| ----------------------- | ------ | ----------------------------------------------------------------- |
-| `BAD_REQUEST`           | 400    | JSON 格式错误或字段不合法；`data.issues` 给出 `{ path, message }` |
-| `VENUE_DISABLED`        | 400    | 场地状态为 `disabled`                                             |
-| `OUTSIDE_OPENING_HOURS` | 400    | 时段不在场地开放时间内                                            |
-| `RESERVATION_IN_PAST`   | 400    | 开始时间不晚于当前时间                                            |
-| `CAPACITY_EXCEEDED`     | 400    | `attendeeCount` 超过场地容量                                      |
-| `VENUE_NOT_FOUND`       | 404    | 场地不存在                                                        |
-| `RESERVATION_NOT_FOUND` | 404    | 预约不存在                                                        |
-| `NOT_FOUND`             | 404    | 路由不存在                                                        |
-| `RESERVATION_CONFLICT`  | 409    | 与同一场地已确认的预约时间重叠                                    |
-| `INTERNAL_SERVER_ERROR` | 500    | 服务器意外错误                                                    |
+| 错误码                      | 状态码 | 触发条件                                                          |
+| --------------------------- | ------ | ----------------------------------------------------------------- |
+| `BAD_REQUEST`               | 400    | JSON 格式错误或字段不合法；`data.issues` 给出 `{ path, message }` |
+| `VENUE_DISABLED`            | 400    | 场地状态为 `disabled`                                             |
+| `OUTSIDE_OPENING_HOURS`     | 400    | 时段不在场地开放时间内                                            |
+| `RESERVATION_IN_PAST`       | 400    | 开始时间不晚于当前时间                                            |
+| `CAPACITY_EXCEEDED`         | 400    | `attendeeCount` 超过场地容量                                      |
+| `VENUE_NOT_FOUND`           | 404    | 场地不存在                                                        |
+| `RESERVATION_NOT_FOUND`     | 404    | 预约不存在                                                        |
+| `REPORT_NOT_FOUND`          | 404    | 报表不存在                                                        |
+| `NOT_FOUND`                 | 404    | 路由不存在                                                        |
+| `RESERVATION_CONFLICT`      | 409    | 与同一场地已确认的预约时间重叠                                    |
+| `INTERNAL_SERVER_ERROR`     | 500    | 服务器意外错误                                                    |
+| `REPORT_RUNNER_UNAVAILABLE` | 503    | 无法启动报表（例如创建 Job 失败）                                 |
 
 ## 数据模型与预约规则
 
@@ -294,15 +331,15 @@ Vite 开发服务器会把 `/api` 转发给 API，与 Docker 中的 nginx 一致
 
 ## 测试
 
-| 命令                       | 范围                                                                 | 依赖                                                         |
-| -------------------------- | -------------------------------------------------------------------- | ------------------------------------------------------------ |
-| `bun run test:unit`        | 校验规则、时间工具、配置解析                                         | 无                                                           |
-| `bun run test:integration` | 用真实 PostgreSQL 测试全部接口，包括冲突、并发、数据库约束、错误处理 | Docker（自动启动临时 PostgreSQL 容器）或 `TEST_DATABASE_URL` |
-| `bun run test`             | 单元测试与集成测试                                                   | 同上                                                         |
-| `bun run test:e2e`         | 浏览器流程、无障碍检查（axe）、经 nginx 代理的接口                   | 正在运行的系统和 Chromium                                    |
-| `bun run test:lighthouse`  | 对三个页面运行 Lighthouse CI（无障碍 ≥ 0.95，最佳实践 ≥ 0.9）        | 正在运行的系统和 Chrome                                      |
+| 命令                       | 范围                                                                                  | 依赖                                                         |
+| -------------------------- | ------------------------------------------------------------------------------------- | ------------------------------------------------------------ |
+| `bun run test:unit`        | 校验规则、时间工具、配置解析、报表                                                    | 无                                                           |
+| `bun run test:integration` | 用真实 PostgreSQL 测试全部接口，包括冲突、并发、数据库约束、错误处理、报表与 Job 启动 | Docker（自动启动临时 PostgreSQL 容器）或 `TEST_DATABASE_URL` |
+| `bun run test`             | 单元测试与集成测试                                                                    | 同上                                                         |
+| `bun run test:e2e`         | 浏览器流程（含报表页）、无障碍检查（axe）、经 nginx 代理的接口                        | 正在运行的系统和 Chromium                                    |
+| `bun run test:lighthouse`  | 对三个页面运行 Lighthouse CI（无障碍 ≥ 0.95，最佳实践 ≥ 0.9）                         | 正在运行的系统和 Chrome                                      |
 
-端到端测试默认访问 <http://localhost:8080>。测试会新增场地和预约，建议在临时部署上运行：
+端到端测试默认访问 <http://localhost:8080>，可用 `E2E_BASE_URL` 指向任一套部署（Compose，或 `minikube service web -n venue-booking --url` 打印的地址）；在 Kubernetes 上报表由 Job 运行，报表用例会等待更久。测试会新增场地和预约，建议在临时部署上运行：
 
 ```bash
 bunx playwright install chromium
@@ -372,6 +409,10 @@ docker volume ls
 ```
 
 输出中包含 `venue-booking_database-data`。
+
+## 实验二验收
+
+实验二的部署、验证步骤和截图证据见 [docs/lab-2-report.md](docs/lab-2-report.md)，实验要求见 [docs/lab-2.md](docs/lab-2.md)；可在集群上逐条复现的命令见 [deploy/k8s/README.md](deploy/k8s/README.md)。
 
 ## 常见问题
 
