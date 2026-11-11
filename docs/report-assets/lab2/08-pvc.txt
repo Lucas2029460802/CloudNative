@@ -5,14 +5,16 @@ persistentvolumeclaim/data-postgres-0   Bound    pvc-50b33992-f354-4273-a20e-c7d
 NAME                                                        CAPACITY   ACCESS MODES   RECLAIM POLICY   STATUS   CLAIM                           STORAGECLASS   VOLUMEATTRIBUTESCLASS   REASON   AGE     VOLUMEMODE
 persistentvolume/pvc-50b33992-f354-4273-a20e-c7da62df31cd   1Gi        RWO            Delete           Bound    venue-booking/data-postgres-0   standard       <unset>                          2m47s   Filesystem
 
-$ kubectl -n venue-booking exec postgres-0 -- sh -c df -h /var/lib/postgresql; ls /var/lib/postgresql/18/docker | head -5
-Filesystem                Size      Used Available Use% Mounted on
-/dev/sde               1006.9G     42.7G    912.9G   4% /etc/hosts
+$ kubectl -n venue-booking exec postgres-0 -- sh -c 'grep /var/lib/postgresql /proc/mounts; ls /var/lib/postgresql/18/docker | head -5'
+/dev/sde /var/lib/postgresql ext4 rw,relatime 0 0
 PG_VERSION
 base
 global
 pg_commit_ts
 pg_dynshmem
+
+$ kubectl get pv -o jsonpath='{.items[0].spec.hostPath.path}'   # where minikube-hostpath stores the volume on the node
+/tmp/hostpath-provisioner/venue-booking/data-postgres-0
 
 $ curl -s http://127.0.0.1:57385/api/reservations | python -c 'count'
 4 reservations before

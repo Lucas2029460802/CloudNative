@@ -1,5 +1,6 @@
 # Lab 1 business flows: browser/curl -> web (nginx) -> api Service -> postgres StatefulSet
 
+$ curl -s -i -X GET http://127.0.0.1:57385/api/venues
 HTTP/1.1 200 OK
 x-served-by: api-c8779bc78-6rkp8
 [
@@ -71,6 +72,7 @@ x-served-by: api-c8779bc78-6rkp8
   }
 ]
 
+$ curl -s -i -X GET http://127.0.0.1:57385/api/venues/1
 HTTP/1.1 200 OK
 x-served-by: api-c8779bc78-927mc
 {
@@ -85,6 +87,7 @@ x-served-by: api-c8779bc78-927mc
   "createdAt": "2026-11-11T18:54:29.764Z"
 }
 
+$ curl -s -i -X POST http://127.0.0.1:57385/api/venues -H 'content-type: application/json' -d '{"name":"Lab 2 Demo Room","location":"Building K, 2F","capacity":20,"openTime":"08:00","closeTime":"22:00","description":"Created on Kubernetes"}'
 HTTP/1.1 201 Created
 x-served-by: api-c8779bc78-8zsfk
 {
@@ -99,6 +102,7 @@ x-served-by: api-c8779bc78-8zsfk
   "createdAt": "2026-11-11T18:55:36.281Z"
 }
 
+$ curl -s -i -X POST http://127.0.0.1:57385/api/reservations -H 'content-type: application/json' -d '{"venueId":1,"bookerName":"Peng","attendeeCount":40,"date":"2026-11-13","startTime":"09:00","endTime":"10:30","purpose":"Cloud native seminar"}'
 HTTP/1.1 201 Created
 x-served-by: api-c8779bc78-8zsfk
 {
@@ -120,6 +124,7 @@ x-served-by: api-c8779bc78-8zsfk
   "cancelledAt": null
 }
 
+$ curl -s -i -X POST http://127.0.0.1:57385/api/reservations -H 'content-type: application/json' -d '{"venueId":1,"bookerName":"Huang","attendeeCount":30,"date":"2026-11-13","startTime":"10:00","endTime":"11:00","purpose":"Overlapping request"}'
 HTTP/1.1 409 Conflict
 x-served-by: api-c8779bc78-6rkp8
 {
@@ -138,6 +143,7 @@ x-served-by: api-c8779bc78-6rkp8
   }
 }
 
+$ curl -s -i -X POST http://127.0.0.1:57385/api/reservations -H 'content-type: application/json' -d '{"venueId":1,"bookerName":"Zheng","attendeeCount":25,"date":"2026-11-14","startTime":"14:00","endTime":"14:45","purpose":"Kubernetes lab review"}'
 HTTP/1.1 201 Created
 x-served-by: api-c8779bc78-927mc
 {
@@ -159,6 +165,7 @@ x-served-by: api-c8779bc78-927mc
   "cancelledAt": null
 }
 
+$ curl -s -i -X POST http://127.0.0.1:57385/api/reservations -H 'content-type: application/json' -d '{"venueId":2,"bookerName":"Huang","attendeeCount":12,"date":"2026-11-15","startTime":"13:00","endTime":"15:00","purpose":"Group meeting"}'
 HTTP/1.1 201 Created
 x-served-by: api-c8779bc78-6rkp8
 {
@@ -180,6 +187,7 @@ x-served-by: api-c8779bc78-6rkp8
   "cancelledAt": null
 }
 
+$ curl -s -i -X POST http://127.0.0.1:57385/api/reservations -H 'content-type: application/json' -d '{"venueId":3,"bookerName":"Peng","attendeeCount":6,"date":"2026-11-16","startTime":"09:30","endTime":"10:00","purpose":"Short sync"}'
 HTTP/1.1 201 Created
 x-served-by: api-c8779bc78-927mc
 {
@@ -201,6 +209,7 @@ x-served-by: api-c8779bc78-927mc
   "cancelledAt": null
 }
 
+$ curl -s -i -X GET http://127.0.0.1:57385/api/reservations?from=2026-11-13
 HTTP/1.1 200 OK
 x-served-by: api-c8779bc78-6rkp8
 [
@@ -278,6 +287,7 @@ x-served-by: api-c8779bc78-6rkp8
   }
 ]
 
+$ curl -s -i -X POST http://127.0.0.1:57385/api/reservations/4/cancel
 HTTP/1.1 200 OK
 x-served-by: api-c8779bc78-8zsfk
 {
@@ -299,6 +309,7 @@ x-served-by: api-c8779bc78-8zsfk
   "cancelledAt": "2026-11-11T18:55:38.742Z"
 }
 
+$ curl -s -i -X GET http://127.0.0.1:57385/api/reservations?status=cancelled
 HTTP/1.1 200 OK
 x-served-by: api-c8779bc78-927mc
 [
