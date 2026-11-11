@@ -58,7 +58,7 @@ function FormField({
       {children}
       {error ? (
         <FieldError id={`${field.name}-feedback`}>
-          {t(error, errorValues)}
+          {t(error, errorValues ?? {})}
         </FieldError>
       ) : (
         description && (
