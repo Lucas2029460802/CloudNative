@@ -1,0 +1,35 @@
+%% Lab 1 runtime: three Compose services, two networks, one named volume.
+flowchart TB
+  browser(["浏览器"]) -->|"HTTP localhost:8080"| port
+
+  subgraph host["Docker 主机：Compose 项目 venue-booking"]
+    port>"端口映射 0.0.0.0:8080 → 容器 8080<br/>FRONTEND_PORT，默认 8080；唯一发布到主机的端口"]
+
+    subgraph fnet["网络 frontend-net"]
+      frontend["frontend<br/>nginx :8080，uid 101<br/>React 静态资源 + /api 反向代理"]
+    end
+
+    api["api（同时接入两个网络）<br/>Node.js :3000，node 用户<br/>Hono + oRPC REST API：校验、业务规则、迁移"]
+
+    subgraph bnet["网络 backend-net"]
+      database[("database<br/>PostgreSQL 18 :5432，uid 70")]
+    end
+
+    volume[("命名卷 database-data<br/>/var/lib/postgresql")]
+  end
+
+  port --> frontend
+  frontend -->|"/api/* → api:3000（HTTP）<br/>经 frontend-net"| api
+  api -->|"SQL → database:5432<br/>经 backend-net"| database
+  database -. 挂载 .- volume
+
+  classDef edge fill:#f1f5f9,stroke:#475569,color:#0f172a
+  classDef web fill:#e8f1fd,stroke:#3b7ddd,color:#0f2a4d
+  classDef api fill:#e7f6ee,stroke:#2f9e63,color:#0f3a24
+  classDef db fill:#fdf3e1,stroke:#d08a1e,color:#4a2f05
+  class browser,port edge
+  class frontend web
+  class api api
+  class database,volume db
+  style fnet fill:#f5f9ff,stroke:#3b7ddd,stroke-dasharray:5 4
+  style bnet fill:#fffaf0,stroke:#d08a1e,stroke-dasharray:5 4

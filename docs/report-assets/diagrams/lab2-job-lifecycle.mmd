@@ -1,0 +1,29 @@
+%% Lab 2 manual report lifecycle (apps/api/src/routers/reports.ts, reports/run.ts, reports/launcher.ts).
+flowchart TB
+  start(("开始")) -->|"POST /api/reports<br/>事务：插入报告行，写入预先确定的 job_name"| pending
+
+  pending(["pending"])
+  running(["running"])
+  succeeded(["succeeded"])
+  failed(["failed"])
+
+  launch["API 读取 CronJob venue-report，复制 jobTemplate<br/>以 job_name 创建 Job，不设 ownerReferences"]
+  pending -.- launch
+
+  pending -->|"Job 的 Pod 运行 node dist/report.js<br/>事务 1：FOR UPDATE 锁定行，核对 job_name 与 pending<br/>写 running、started_at 并提交"| running
+  running -->|"事务 2：再次锁定并核对 job_name 与 running<br/>保存点内聚合，写 results、finished_at"| succeeded
+  pending -->|"创建 Job 失败且查不到 Job：返回 503<br/>对账：Job Failed，或提交 60 秒后仍无 Job"| failed
+  running -->|"聚合出错：回滚到保存点<br/>对账：Job Failed（如 DeadlineExceeded）"| failed
+
+  classDef point fill:#334155,stroke:#334155,color:#ffffff
+  classDef waiting fill:#f1f5f9,stroke:#475569,color:#0f172a
+  classDef active fill:#e8f1fd,stroke:#3b7ddd,color:#0f2a4d
+  classDef ok fill:#e7f6ee,stroke:#2f9e63,color:#0f3a24
+  classDef bad fill:#fdecec,stroke:#d14343,color:#4a0d0d
+  classDef note fill:#fffbea,stroke:#d9b44a,color:#4a3a05,stroke-dasharray:5 4
+  class start point
+  class pending waiting
+  class running active
+  class succeeded ok
+  class failed bad
+  class launch note

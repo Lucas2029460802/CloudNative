@@ -201,9 +201,9 @@ rolebinding.rbac.authorization.k8s.io/report-launcher   Role/report-launcher   4
 
 ### 2.1 系统架构图
 
-![Lab 2 系统架构图](report-assets/lab2-00-architecture.png)
+![Lab 2 系统架构图](report-assets/diagrams/lab2-architecture.png)
 
-图 1 Lab 2 系统架构。实线是请求或数据流向，虚线是配置注入；Mermaid 源文件为 `docs/report-assets/lab2/architecture.mmd`，用同目录的 `render-diagram.mjs` 生成图片。
+图 1 Lab 2 系统架构。实线是请求或数据流向，虚线是配置注入。Mermaid 源文件在 `docs/report-assets/diagrams/`，运行 `bun run diagrams` 重新生成。
 
 图中三条链路：
 
@@ -458,22 +458,9 @@ order by v.id
 
 ### 2.10 一次性 Job 的生命周期
 
-```text
-POST /api/reports
-  │  事务：插入 reports 行（pending），并写入预先确定的 job_name
-  ▼
-pending
-  │  API：GET cronjobs/venue-report，复制 jobTemplate，POST jobs（metadata.name = job_name）
-  │  Job 的 Pod 启动 node dist/report.js
-  │  事务 1：锁定报告行，核对 job_name 和状态，写 running 与 started_at，提交
-  ▼
-running
-  │  事务 2：再次锁定并核对，执行聚合，写 results、succeeded 与 finished_at
-  ▼
-succeeded
+![手动报告的状态变化](report-assets/diagrams/lab2-job-lifecycle.png)
 
-任一步失败：报告行写为 failed 并记录 error；工作进程以退出码 1 结束，Job 记为 Failed
-```
+图 2 手动报告的状态变化。任一步失败时报告行写为 `failed` 并记录 `error`，工作进程以退出码 1 结束，Job 记为 Failed。
 
 #### 触发与 Job 的创建
 

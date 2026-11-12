@@ -1,0 +1,29 @@
+%% Lab 1 schema (apps/api/src/db/schema.ts): one venue has many reservations.
+erDiagram
+  venues ||--o{ reservations : "venue_id（ON DELETE RESTRICT）"
+
+  venues {
+    integer id PK "自增"
+    varchar(100) name
+    varchar(200) location
+    integer capacity "CHECK > 0"
+    time open_time "CHECK open_time < close_time"
+    time close_time
+    venue_status status "DEFAULT open；open | disabled"
+    text description "可空"
+    timestamptz created_at "DEFAULT now()"
+  }
+
+  reservations {
+    integer id PK "自增"
+    integer venue_id FK "→ venues.id"
+    varchar(100) booker_name
+    integer attendee_count "CHECK > 0"
+    date reservation_date
+    time start_time "CHECK start_time < end_time"
+    time end_time "EXCLUDE：同一场地已确认预约的 [开始, 结束) 不重叠"
+    varchar(500) purpose
+    reservation_status status "DEFAULT confirmed；confirmed | cancelled"
+    timestamptz created_at "DEFAULT now()"
+    timestamptz cancelled_at "可空；非空当且仅当 status = cancelled"
+  }

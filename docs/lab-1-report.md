@@ -24,36 +24,15 @@
 - 新增场地；停用的场地仍会显示，但不能预约；
 - 支持英文和简体中文界面、浅色和深色主题，适配手机屏幕。
 
-仓库根目录的 `README.md` 是中文使用说明（英文版为 `README.en.md`，`README.zh.md` 为同内容的中文副本），本报告侧重设计说明和运行记录。
+仓库根目录的 `README.md` 是中文使用说明（英文版为 `README.en.md`，`README.zh.md` 现仅指向 `README.md`），本报告侧重设计说明和运行记录。
 
 ## 2. 系统架构
 
 ### 2.1 运行时架构
 
-```text
-浏览器 ──HTTP :8080──▶ frontend (nginx)            React 静态资源
-                         │  /api/* 反向代理
-                         ▼
-                       api (Node.js :3000)          Hono + oRPC REST API、参数校验、业务规则
-                         │  SQL
-                         ▼
-                       database (PostgreSQL :5432)  场地与预约数据（命名卷）
-```
+![运行时架构](report-assets/diagrams/lab1-runtime.png)
 
-`frontend-net` 连接前端和 API，`backend-net` 连接 API 和数据库，只有 API 同时接入两个网络：
-
-```text
-主机 0.0.0.0:8080
-  │  端口映射到容器的 8080
-  ▼
-frontend（只接入 frontend-net）
-  │  http://api:3000，经 frontend-net
-  ▼
-api（同时接入 frontend-net 和 backend-net）
-  │  database:5432，经 backend-net
-  ▼
-database（只接入 backend-net）──▶ 命名卷 database-data
-```
+`frontend-net` 连接前端和 API，`backend-net` 连接 API 和数据库，只有 API 同时接入两个网络。主机只发布前端的 8080 端口，API 和数据库没有主机端口。图的 Mermaid 源文件在 `docs/report-assets/diagrams/`，运行 `bun run diagrams` 重新生成。
 
 | 容器（服务） | 镜像                           | 容器内的主要进程                    | 职责                                         | 网络                          | 主机端口 |
 | ------------ | ------------------------------ | ----------------------------------- | -------------------------------------------- | ----------------------------- | -------- |
@@ -158,20 +137,9 @@ frontend  1   statd  14236  14175  0   13:53  ?    00:00:00  nginx: worker proce
 
 一个场地可以有多条预约，每条预约属于一个场地：
 
-```text
-venues（场地）                        reservations（预约）
-┌────────────────────────┐            ┌──────────────────────────────┐
-│ id            PK       │ 1        N │ id                PK         │
-│ name                   │◀───────────│ venue_id  FK → venues.id     │
-│ location               │            │ booker_name                  │
-│ capacity               │            │ attendee_count               │
-│ open_time, close_time  │            │ reservation_date             │
-│ status                 │            │ start_time, end_time         │
-│ description            │            │ purpose                      │
-│ created_at             │            │ status                       │
-└────────────────────────┘            │ created_at, cancelled_at     │
-                                      └──────────────────────────────┘
-```
+![场地与预约的实体关系](report-assets/diagrams/lab1-er.png)
+
+图中未标“可空”的列都是 `NOT NULL`；各列的含义和约束见下面两张表。
 
 ### 3.2 venues 表
 

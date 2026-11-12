@@ -1,4 +1,4 @@
-%% Lab 2 architecture. Render: node docs/report-assets/lab2/render-diagram.mjs (see that file)
+%% Lab 2 architecture: workloads, Services and report Jobs in namespace venue-booking.
 flowchart TB
   browser(["浏览器（Windows 主机）"]) -->|"minikube service 隧道<br/>127.0.0.1:57385"| websvc
   apiserver[["kube-apiserver"]]
@@ -11,7 +11,7 @@ flowchart TB
     api -->|SQL| pgsvc{{"Service postgres<br/>Headless :5432"}}
     pgsvc --> pg[("StatefulSet postgres ×1<br/>Pod postgres-0<br/>PVC data-postgres-0<br/>1Gi，standard")]
 
-    cron["CronJob venue-report<br/>*/2 * * * *，Asia/Shanghai"] -->|按时创建| cjob["Job<br/>venue-report-&lt;调度时间&gt;<br/>node dist/report.js"]
+    cron["CronJob venue-report<br/>*/2 * * * *，Asia/Shanghai<br/>concurrencyPolicy: Forbid"] -->|按时创建| cjob["Job<br/>venue-report-&lt;调度时刻，Unix 分钟数&gt;<br/>node dist/report.js"]
     mjob["Job<br/>venue-report-manual-&lt;编号&gt;-&lt;随机串&gt;<br/>node dist/report.js"]
     cjob -->|SQL| pgsvc
     mjob -->|SQL| pgsvc
@@ -22,3 +22,20 @@ flowchart TB
 
   api -->|"HTTPS 创建 Job（RBAC：report-launcher）"| apiserver -->|手动报告| mjob
   logs -->|只读 hostPath| fb
+
+  classDef edge fill:#f1f5f9,stroke:#475569,color:#0f172a
+  classDef svc fill:#ffffff,stroke:#64748b,color:#1e293b
+  classDef web fill:#e8f1fd,stroke:#3b7ddd,color:#0f2a4d
+  classDef api fill:#e7f6ee,stroke:#2f9e63,color:#0f3a24
+  classDef db fill:#fdf3e1,stroke:#d08a1e,color:#4a2f05
+  classDef job fill:#f1ebfb,stroke:#7b52c7,color:#2a1554
+  classDef cfg fill:#f8fafc,stroke:#94a3b8,color:#334155,stroke-dasharray:5 4
+  classDef ops fill:#e5f6f7,stroke:#1f9aa5,color:#073b40
+  class browser,apiserver edge
+  class websvc,apisvc,pgsvc svc
+  class web web
+  class api api
+  class pg,logs db
+  class cron,cjob,mjob job
+  class cfg cfg
+  class fb ops
