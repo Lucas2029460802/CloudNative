@@ -32,14 +32,11 @@ docker compose up --build -d
 
 ## 系统架构
 
-```text
-浏览器 ──HTTP :8080──▶ frontend (nginx)            React 静态资源
-                         │  /api/* 反向代理
-                         ▼
-                       api (Node.js :3000)          Hono + oRPC REST API、参数校验、业务规则
-                         │  SQL
-                         ▼
-                       database (PostgreSQL :5432)  场地与预约数据（命名卷）
+```mermaid
+flowchart LR
+  browser([浏览器]) -->|"HTTP :8080"| frontend["frontend<br/>nginx + React 静态资源"]
+  frontend -->|"/api/* 反向代理"| api["api<br/>Node.js :3000<br/>Hono + oRPC REST API"]
+  api -->|SQL| database[("database<br/>PostgreSQL :5432<br/>命名卷 database-data")]
 ```
 
 | 容器       | 镜像                           | 职责                                         | 网络                          | 对外端口       |
@@ -50,7 +47,15 @@ docker compose up --build -d
 
 浏览器只访问前端所在的源，因此无需配置 CORS，也无需在构建时指定 API 地址。`frontend` 容器没有接入 `backend-net`，既解析不到也连不上数据库。
 
-在 Kubernetes 上，`web` 和 `api` 是 Deployment，`postgres` 是带 PVC 的 StatefulSet，`venue-report` 是 CronJob，`fluent-bit` 是 DaemonSet，全部位于 `venue-booking` 命名空间。见「使用 Kubernetes（minikube）运行」。
+在 Kubernetes 上，`web` 和 `api` 是 Deployment，`postgres` 是带 PVC 的 StatefulSet，`venue-report` 是 CronJob，`fluent-bit` 是 DaemonSet，全部位于 `venue-booking` 命名空间。架构图和各清单文件的用途见 [deploy/k8s/README.md](deploy/k8s/README.md)。
+
+同一组件在不同位置的名称：
+
+| 组件       | 源码       | Docker Compose 服务 | Kubernetes 资源 | 镜像                     |
+| ---------- | ---------- | ------------------- | --------------- | ------------------------ |
+| 前端       | `apps/web` | `frontend`          | `web`           | `venue-booking/frontend` |
+| API        | `apps/api` | `api`               | `api`           | `venue-booking/api`      |
+| PostgreSQL | 无         | `database`          | `postgres`      | `postgres`（官方镜像）   |
 
 ## 技术栈
 
@@ -245,12 +250,12 @@ Vite 开发服务器会把 `/api` 转发给 API，与 Docker 中的 nginx 一致
 | POST | `/api/reservations/{id}/cancel` | 取消预约                 | 200  | 400、404           |
 | GET  | `/api/reports`                  | 最近 50 份利用率报表     | 200  |                    |
 | GET  | `/api/reports/{id}`             | 查询报表（含各场地结果） | 200  | 400、404           |
-| POST | `/api/reports`                  | 请求一份报表（异步）     | 202  | 400、503           |
+| POST | `/api/reports`                  | 请求一份报表             | 202  | 400、503           |
 | GET  | `/api/health`                   | 存活及数据库连通性检查   | 200  | 数据库不可用时 503 |
 
 每个响应都带有 `X-Served-By` 头，值为处理请求的 API 主机名（在 Kubernetes 上即 Pod 名），请求日志中也会记录。
 
-`POST /api/reports` 的请求体为 `{"from":"2026-11-12","to":"2026-11-18"}`（含两端，最多 366 天）。报表的 `status` 依次为 `pending`、`running`，最终为 `succeeded` 或 `failed`，请轮询 `GET /api/reports/{id}`；`results` 列出每个场地的 `reservationCount` 和 `bookedMinutes`。创建 Job 失败时返回 503（`REPORT_RUNNER_UNAVAILABLE`），报表不存在时返回 404（`REPORT_NOT_FOUND`）。
+`POST /api/reports` 的请求体为 `{"from":"2026-11-12","to":"2026-11-18"}`（含两端，最多 366 天）。报表的 `status` 依次为 `pending`、`running`，最终为 `succeeded` 或 `failed`。Compose（`inline`）下返回的已是完成的报表；Kubernetes 下报表由 Job 生成，请轮询 `GET /api/reports/{id}`。`results` 列出每个场地的 `reservationCount` 和 `bookedMinutes`。创建 Job 失败时返回 503（`REPORT_RUNNER_UNAVAILABLE`），报表不存在时返回 404（`REPORT_NOT_FOUND`）。
 
 `GET /api/reservations` 支持以下可选查询参数（同时使用时取交集）：`venueId`、`date`（指定日期）、`from`（该日期及以后）、`status`（`confirmed` 或 `cancelled`）、`q`（在预约人和用途中不区分大小写搜索）。结果按日期和开始时间排序。
 

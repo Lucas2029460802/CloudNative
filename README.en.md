@@ -16,14 +16,11 @@ People pick a day, see when each campus venue is free, book a time slot, and get
 
 ## Architecture
 
-```text
-Browser ──HTTP :8080──▶ frontend (nginx)          static React build
-                          │  /api/* reverse proxy
-                          ▼
-                        api (Node.js :3000)        Hono + oRPC REST API, validation, business rules
-                          │  SQL
-                          ▼
-                        database (PostgreSQL :5432) venues, reservations (named volume)
+```mermaid
+flowchart LR
+  browser([Browser]) -->|"HTTP :8080"| frontend["frontend<br/>nginx + static React build"]
+  frontend -->|"/api/* reverse proxy"| api["api<br/>Node.js :3000<br/>Hono + oRPC REST API"]
+  api -->|SQL| database[("database<br/>PostgreSQL :5432<br/>named volume database-data")]
 ```
 
 | Container  | Image                          | Responsibility                                                  | Networks                      | Published port |
@@ -34,7 +31,15 @@ Browser ──HTTP :8080──▶ frontend (nginx)          static React build
 
 The browser only talks to the frontend origin, so no CORS setup is needed and the API base URL needs no build-time configuration. The frontend container is not attached to `backend-net`: it cannot resolve or reach the database.
 
-On Kubernetes, `web` and `api` are Deployments, `postgres` is a StatefulSet with a PVC, `venue-report` is a CronJob, and `fluent-bit` is a DaemonSet, all in the `venue-booking` namespace. See "Run on Kubernetes (minikube)".
+On Kubernetes, `web` and `api` are Deployments, `postgres` is a StatefulSet with a PVC, `venue-report` is a CronJob, and `fluent-bit` is a DaemonSet, all in the `venue-booking` namespace. [deploy/k8s/README.md](deploy/k8s/README.md) has the architecture diagram and what each manifest is for.
+
+The same component goes by different names in different places:
+
+| Component  | Source     | Compose service | Kubernetes resources | Image                    |
+| ---------- | ---------- | --------------- | -------------------- | ------------------------ |
+| Frontend   | `apps/web` | `frontend`      | `web`                | `venue-booking/frontend` |
+| API        | `apps/api` | `api`           | `api`                | `venue-booking/api`      |
+| PostgreSQL | none       | `database`      | `postgres`           | `postgres` (official)    |
 
 ## Tech stack
 
@@ -229,14 +234,14 @@ All endpoints use JSON and live under `/api`. The full schema is served at `/api
 | POST   | `/api/reservations/{id}/cancel` | Cancel a reservation               | 200     | 400, 404                      |
 | GET    | `/api/reports`                  | The 50 latest utilisation reports  | 200     |                               |
 | GET    | `/api/reports/{id}`             | Report with per-venue results      | 200     | 400, 404                      |
-| POST   | `/api/reports`                  | Request a report (asynchronous)    | 202     | 400, 503                      |
+| POST   | `/api/reports`                  | Request a report                   | 202     | 400, 503                      |
 | GET    | `/api/health`                   | Liveness and database connectivity | 200     | 503 when the database is down |
 
 `GET /api/reservations` accepts optional query parameters, combined with AND: `venueId`, `date` (exact day), `from` (on or after), `status` (`confirmed` or `cancelled`), and `q` (case-insensitive search in booker name and purpose). Results are sorted by date and start time.
 
 Every response carries an `X-Served-By` header with the host name of the API instance that handled it (the pod name on Kubernetes); request logs record it too.
 
-`POST /api/reports` takes `{"from":"2026-11-12","to":"2026-11-18"}` (both ends inclusive, at most 366 days). A report's `status` goes `pending`, `running`, then `succeeded` or `failed`, so poll `GET /api/reports/{id}`; `results` lists `reservationCount` and `bookedMinutes` for every venue.
+`POST /api/reports` takes `{"from":"2026-11-12","to":"2026-11-18"}` (both ends inclusive, at most 366 days). A report's `status` goes `pending`, `running`, then `succeeded` or `failed`. On Compose (`inline`) the response is already the finished report; on Kubernetes a Job produces it, so poll `GET /api/reports/{id}`; `results` lists `reservationCount` and `bookedMinutes` for every venue.
 
 Create a venue:
 
