@@ -1,0 +1,24 @@
+%% Lab 2 architecture. Render: node docs/report-assets/lab2/render-diagram.mjs (see that file)
+flowchart TB
+  browser(["浏览器（Windows 主机）"]) -->|"minikube service 隧道<br/>127.0.0.1:57385"| websvc
+  apiserver[["kube-apiserver"]]
+  logs[("节点目录<br/>/var/log/containers")]
+
+  subgraph ns["命名空间 venue-booking"]
+    websvc{{"Service web<br/>NodePort 8080:31975"}} --> web["Deployment web ×2<br/>nginx :8080，React 静态资源"]
+    web -->|"/api/* 反向代理"| apisvc{{"Service api<br/>ClusterIP :3000"}}
+    apisvc --> api["Deployment api ×3<br/>Node.js :3000<br/>ServiceAccount api"]
+    api -->|SQL| pgsvc{{"Service postgres<br/>Headless :5432"}}
+    pgsvc --> pg[("StatefulSet postgres ×1<br/>Pod postgres-0<br/>PVC data-postgres-0<br/>1Gi，standard")]
+
+    cron["CronJob venue-report<br/>*/2 * * * *，Asia/Shanghai"] -->|按时创建| cjob["Job<br/>venue-report-&lt;调度时间&gt;<br/>node dist/report.js"]
+    mjob["Job<br/>venue-report-manual-&lt;编号&gt;-&lt;随机串&gt;<br/>node dist/report.js"]
+    cjob -->|SQL| pgsvc
+    mjob -->|SQL| pgsvc
+
+    cfg["ConfigMap app-config<br/>Secret postgres-credentials"] -.->|环境变量| api
+    fb["DaemonSet fluent-bit<br/>每个节点 1 个 Pod → stdout"]
+  end
+
+  api -->|"HTTPS 创建 Job（RBAC：report-launcher）"| apiserver -->|手动报告| mjob
+  logs -->|只读 hostPath| fb

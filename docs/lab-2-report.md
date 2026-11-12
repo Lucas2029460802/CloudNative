@@ -201,41 +201,15 @@ rolebinding.rbac.authorization.k8s.io/report-launcher   Role/report-launcher   4
 
 ### 2.1 系统架构图
 
-请求链路：
+![Lab 2 系统架构图](report-assets/lab2-00-architecture.png)
 
-```text
-浏览器（Windows 主机）
-  │  http://127.0.0.1:57385        minikube service web --url 建立的隧道
-  ▼
-Service web（NodePort 8080:31975）  集群唯一的对外入口
-  ▼
-Deployment web ×2                   nginx :8080，React 静态资源，/api/* 反向代理
-  │  http://api.venue-booking.svc.cluster.local:3000
-  ▼
-Service api（ClusterIP :3000）      只在集群内可达，把连接分给 3 个 Pod
-  ▼
-Deployment api ×3                   Node.js :3000，REST API，ServiceAccount api
-  │  postgres://…@postgres:5432
-  ▼
-Service postgres（Headless :5432）  DNS 直接解析到 postgres-0 的 Pod IP
-  ▼
-StatefulSet postgres ×1             Pod postgres-0，数据在 PVC data-postgres-0（1Gi，standard）
-```
+图 1 Lab 2 系统架构。实线是请求或数据流向，虚线是配置注入；Mermaid 源文件为 `docs/report-assets/lab2/architecture.mmd`，用同目录的 `render-diagram.mjs` 生成图片。
 
-报告任务与日志采集：
+图中三条链路：
 
-```text
-手动报告
-  Deployment api ──HTTPS──▶ kube-apiserver ──▶ Job venue-report-manual-<报告编号>-<随机串>
-                                                 └─▶ Pod：node dist/report.js（REPORT_ID=<报告编号>）──SQL──▶ Service postgres
-
-定时报告
-  CronJob venue-report（*/2 * * * *，Asia/Shanghai）──▶ Job venue-report-<调度时间>
-                                                          └─▶ Pod：node dist/report.js ──SQL──▶ Service postgres
-
-日志采集
-  节点 /var/log/containers/*_venue-booking_*.log ──只读 hostPath──▶ DaemonSet fluent-bit（每个节点 1 个 Pod）──▶ stdout
-```
+- 用户请求：浏览器经 `minikube service` 隧道进入 NodePort Service `web`，nginx 把 `/api/*` 转发到 ClusterIP Service `api`，API 再通过 Headless Service `postgres` 访问 `postgres-0`。只有 `web` 对集群外开放。
+- 报告任务：手动报告由 API 调用 kube-apiserver 创建 Job；定时报告由 CronJob `venue-report` 按时创建 Job。两种 Job 运行同一个 `node dist/report.js`，结果写回 PostgreSQL。
+- 日志采集：DaemonSet `fluent-bit` 在每个节点上以只读 hostPath 读取容器日志，补充 Pod 元数据后输出到自身 stdout。
 
 与 Lab 1 的对应关系：
 
