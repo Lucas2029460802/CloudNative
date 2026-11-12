@@ -17,5 +17,5 @@
   },
   // The api and contracts workspaces extend this; on its own it covers the
   // root-level tests and tool configs.
-  "include": ["tests", "*.ts"]
+  "include": ["tests", "scripts", "*.ts"]
 }

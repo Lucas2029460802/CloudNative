@@ -1,13 +1,18 @@
 {
   "$schema": "https://unpkg.com/knip@6/schema.json",
-  "ignore": [".agents/**", ".claude/**", "apps/web/src/components/ui/**"],
-  "ignoreDependencies": ["@playwright/cli"],
+  "ignore": [".agents/**", "apps/web/src/components/ui/**"],
+  "ignoreDependencies": [
+    "@playwright/cli",
+    "@fontsource/noto-sans-sc",
+    "@fontsource/source-sans-3",
+    "mermaid"
+  ],
   "workspaces": {
     "apps/api": {
       "entry": ["src/report.ts"]
     },
     ".": {
-      "entry": ["tests/**/*.ts", "docs/**/*.mjs"]
+      "entry": ["tests/**/*.ts", "scripts/*.ts"]
     }
   }
 }
