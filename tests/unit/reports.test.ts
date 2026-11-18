@@ -76,6 +76,10 @@ describe("scheduledWindow", () => {
     expect(
       scheduledWindow(new Date("2026-11-01T04:30:00Z"), "America/New_York", 2)
     ).toEqual({ from: "2026-11-01", to: "2026-11-02" })
+    // 23:30 local on the night before a DST gap at midnight.
+    expect(
+      scheduledWindow(new Date("2026-03-28T01:30:00Z"), "America/Nuuk", 2)
+    ).toEqual({ from: "2026-03-27", to: "2026-03-28" })
     expect(scheduledWindow(new Date("2026-11-12T23:30:00Z"), "UTC", 1)).toEqual(
       { from: "2026-11-12", to: "2026-11-12" }
     )
