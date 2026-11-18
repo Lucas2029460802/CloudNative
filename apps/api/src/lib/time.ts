@@ -1,25 +1,16 @@
+import { tz } from "@date-fns/tz"
+import { format } from "date-fns"
+
 /**
  * Current wall-clock date (`YYYY-MM-DD`) and time (`HH:mm`) in `timeZone`.
  * Reservation dates and times are stored without a time zone, so "now" must be
  * expressed the same way before comparing.
  */
 export function wallClock(instant: Date, timeZone: string) {
-  const parts = Object.fromEntries(
-    new Intl.DateTimeFormat("en-CA", {
-      timeZone,
-      year: "numeric",
-      month: "2-digit",
-      day: "2-digit",
-      hour: "2-digit",
-      minute: "2-digit",
-      hourCycle: "h23",
-    })
-      .formatToParts(instant)
-      .map((part) => [part.type, part.value])
-  )
+  const zone = { in: tz(timeZone) }
   return {
-    date: `${parts.year}-${parts.month}-${parts.day}`,
-    time: `${parts.hour}:${parts.minute}`,
+    date: format(instant, "yyyy-MM-dd", zone),
+    time: format(instant, "HH:mm", zone),
   }
 }
 
