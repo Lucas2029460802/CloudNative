@@ -1,5 +1,6 @@
 import { sql } from "drizzle-orm"
 import { drizzle } from "drizzle-orm/postgres-js"
+import pRetry from "p-retry"
 import postgres from "postgres"
 
 export function createDatabase(url: string) {
@@ -14,16 +15,15 @@ export async function waitForDatabase(
   db: Database,
   { attempts = 30, delayMs = 1000 } = {}
 ) {
-  for (let attempt = 1; ; attempt++) {
-    try {
-      await db.execute(sql`select 1`)
-      return
-    } catch (error) {
-      if (attempt >= attempts) throw error
-      console.warn(
-        `Database not reachable (attempt ${attempt}/${attempts}), retrying in ${delayMs}ms`
-      )
-      await new Promise((resolve) => setTimeout(resolve, delayMs))
-    }
-  }
+  await pRetry(() => db.execute(sql`select 1`), {
+    retries: attempts - 1,
+    factor: 1,
+    minTimeout: delayMs,
+    onFailedAttempt: ({ attemptNumber, retriesLeft }) => {
+      if (retriesLeft > 0)
+        console.warn(
+          `Database not reachable (attempt ${attemptNumber}/${attempts}), retrying in ${delayMs}ms`
+        )
+    },
+  })
 }
