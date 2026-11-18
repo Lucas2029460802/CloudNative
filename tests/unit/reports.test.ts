@@ -1,8 +1,17 @@
+import {
+  ApiException,
+  HttpMethod,
+  RequestContext,
+  type V1CronJob,
+  type V1Job,
+  type V1JobCondition,
+} from "@kubernetes/client-node"
 import { describe, expect, it, vi } from "vitest"
 
 import { CreateReportInputSchema } from "../../packages/contracts/src/schemas"
 import { loadConfig } from "../../apps/api/src/config"
 import {
+  type BatchClient,
   buildReportJob,
   createKubernetesLauncher,
   reportJobFailure,
@@ -12,8 +21,18 @@ import { scheduledWindow } from "../../apps/api/src/reports/run"
 function cronJob() {
   return {
     spec: {
+      schedule: "*/2 * * * *",
       jobTemplate: {
-        metadata: { ownerReferences: [{ name: "venue-report" }] },
+        metadata: {
+          ownerReferences: [
+            {
+              apiVersion: "batch/v1",
+              kind: "CronJob",
+              name: "venue-report",
+              uid: "test",
+            },
+          ],
+        },
         spec: {
           backoffLimit: 0,
           activeDeadlineSeconds: 120,
@@ -37,7 +56,7 @@ function cronJob() {
         },
       },
     },
-  }
+  } satisfies V1CronJob
 }
 
 describe("scheduledWindow", () => {
@@ -82,12 +101,12 @@ describe("buildReportJob", () => {
       backoffLimit: 0,
       activeDeadlineSeconds: 120,
     })
-    expect(job.spec.template.metadata?.labels).toMatchObject({
+    expect(job.spec!.template.metadata?.labels).toMatchObject({
       existing: "preserved",
       "venue-booking/report-id": "42",
     })
-    expect(job.spec.template.spec.containers[0]!.env).toEqual([])
-    expect(job.spec.template.spec.containers[1]!.env).toEqual([
+    expect(job.spec!.template.spec!.containers[0]!.env).toEqual([])
+    expect(job.spec!.template.spec!.containers[1]!.env).toEqual([
       { name: "DATABASE_URL", value: "postgres://test" },
       { name: "REPORT_ID", value: "42" },
     ])
@@ -101,8 +120,8 @@ describe("buildReportJob", () => {
       }
     ).env
     expect(
-      buildReportJob(template, 3, "manual-3").spec.template.spec.containers[1]!
-        .env
+      buildReportJob(template, 3, "manual-3").spec!.template.spec!
+        .containers[1]!.env
     ).toEqual([{ name: "REPORT_ID", value: "3" }])
     template.spec.jobTemplate.spec.template.spec.containers = []
     expect(() => buildReportJob(template, 3, "manual-3")).toThrow(
@@ -112,7 +131,7 @@ describe("buildReportJob", () => {
 })
 
 describe("reportJobFailure", () => {
-  it.each([
+  it.each<[V1Job, V1JobCondition | undefined]>([
     [{}, undefined],
     [
       { status: { conditions: [{ type: "Failed", status: "False" }] } },
@@ -137,89 +156,78 @@ describe("reportJobFailure", () => {
       },
       { type: "Failed", status: "True", reason: "DeadlineExceeded" },
     ],
-  ] as const)(
-    "returns only an active Failed condition: %j",
-    (job, expected) => {
-      expect(reportJobFailure(structuredClone(job))).toEqual(expected)
-    }
-  )
+  ])("returns only an active Failed condition: %j", (job, expected) => {
+    expect(reportJobFailure(structuredClone(job))).toEqual(expected)
+  })
 })
 
+function fakeBatch() {
+  return {
+    readNamespacedCronJob: vi.fn<BatchClient["readNamespacedCronJob"]>(),
+    createNamespacedJob: vi.fn<BatchClient["createNamespacedJob"]>(),
+    readNamespacedJob: vi.fn<BatchClient["readNamespacedJob"]>(),
+  }
+}
+
 describe("Kubernetes launcher", () => {
-  it("uses bounded requests, rereads rotating tokens, and accepts an existing Job", async () => {
-    const requests: { url: string; init: RequestInit }[] = []
-    const readSecret = vi.fn<(name: string) => Promise<string>>(async (name) =>
-      name === "namespace" ? "venue-booking\n" : `token-${requests.length}`
-    )
-    const request = vi.fn<typeof fetch>(
-      async (url: string | URL | Request, init?: RequestInit) => {
-        requests.push({ url: String(url), init: init! })
-        return requests.length === 1
-          ? Response.json(cronJob())
-          : new Response(null, { status: 409 })
-      }
+  it("creates the Job in the ServiceAccount namespace with bounded requests and accepts an existing Job", async () => {
+    const batch = fakeBatch()
+    batch.readNamespacedCronJob.mockResolvedValue(cronJob())
+    batch.createNamespacedJob.mockRejectedValue(
+      new ApiException(409, "", "", {})
     )
     const launcher = createKubernetesLauncher(
-      { host: "10.0.0.1" },
-      { fetch: request as typeof fetch, readSecret }
+      {},
+      { batch, namespace: "venue-booking" }
     )
     await launcher.launch(7, "venue-report-manual-7-abc12")
-    expect(requests.map((item) => item.url)).toEqual([
-      "https://10.0.0.1:443/apis/batch/v1/namespaces/venue-booking/cronjobs/venue-report",
-      "https://10.0.0.1:443/apis/batch/v1/namespaces/venue-booking/jobs",
-    ])
-    expect(requests[0]!.init.headers).toHaveProperty(
-      "authorization",
-      "Bearer token-0"
-    )
-    expect(requests[1]!.init.headers).toHaveProperty(
-      "authorization",
-      "Bearer token-1"
-    )
-    expect(
-      requests.every((item) => item.init.signal instanceof AbortSignal)
-    ).toBe(true)
-    expect(JSON.parse(requests[1]!.init.body as string).metadata.name).toBe(
-      "venue-report-manual-7-abc12"
-    )
-    expect(
-      readSecret.mock.calls.filter(([name]) => name === "token")
-    ).toHaveLength(2)
+    expect(batch.readNamespacedCronJob.mock.calls[0]![0]).toEqual({
+      name: "venue-report",
+      namespace: "venue-booking",
+    })
+    const [create, options] = batch.createNamespacedJob.mock.calls[0]!
+    expect(create.namespace).toBe("venue-booking")
+    expect(create.body.metadata?.name).toBe("venue-report-manual-7-abc12")
+    const request = new RequestContext("https://10.0.0.1", HttpMethod.GET)
+    await options!.middleware![0]!.pre(request).toPromise()
+    expect(request.getSignal()).toBeInstanceOf(AbortSignal)
   })
 
   it("returns null for a missing Job and rejects other Kubernetes errors without response details", async () => {
-    const request = vi
-      .fn<typeof fetch>()
-      .mockResolvedValueOnce(new Response(null, { status: 404 }))
-      .mockResolvedValueOnce(new Response("secret token", { status: 403 }))
-      .mockResolvedValueOnce(new Response("secret token", { status: 403 }))
-    const launcher = createKubernetesLauncher(
-      { host: "::1" },
-      { fetch: request, readSecret: async () => "test" }
+    const batch = fakeBatch()
+    batch.readNamespacedJob
+      .mockRejectedValueOnce(new ApiException(404, "", "", {}))
+      .mockRejectedValueOnce(new ApiException(403, "", "secret token", {}))
+    batch.readNamespacedCronJob.mockRejectedValue(
+      new ApiException(403, "", "secret token", {})
     )
+    const launcher = createKubernetesLauncher({}, { batch, namespace: "test" })
     expect(await launcher.getJob("missing")).toBeNull()
     await expect(launcher.getJob("forbidden")).rejects.toThrow(
-      "Could not read report Job (HTTP 403)"
+      /^Could not read report Job \(HTTP 403\)$/
     )
     await expect(launcher.launch(1, "manual-1")).rejects.toThrow(
-      "Could not read report CronJob (HTTP 403)"
+      /^Could not read report CronJob \(HTTP 403\)$/
     )
-    expect(request.mock.calls[0]![0]).toContain("https://[::1]:443/")
   })
 
   it("rejects a non-409 Job creation error with its HTTP status and no response details", async () => {
-    const request = vi
-      .fn<typeof fetch>()
-      .mockResolvedValueOnce(Response.json(cronJob()))
-      .mockResolvedValueOnce(new Response("secret token", { status: 403 }))
-    const launcher = createKubernetesLauncher(
-      { host: "10.0.0.1" },
-      { fetch: request, readSecret: async () => "test" }
+    const batch = fakeBatch()
+    batch.readNamespacedCronJob.mockResolvedValue(cronJob())
+    batch.createNamespacedJob.mockRejectedValue(
+      new ApiException(403, "", "secret token", {})
     )
+    const launcher = createKubernetesLauncher({}, { batch, namespace: "test" })
     await expect(launcher.launch(1, "manual-1")).rejects.toThrow(
-      "Could not create report Job (HTTP 403)"
+      /^Could not create report Job \(HTTP 403\)$/
     )
-    expect(request.mock.calls[1]![1]?.method).toBe("POST")
+  })
+
+  it("fails a call when no namespace is known", async () => {
+    const launcher = createKubernetesLauncher({}, { batch: fakeBatch() })
+    await expect(launcher.getJob("any")).rejects.toThrow(
+      "Kubernetes namespace is unavailable"
+    )
   })
 })
 
@@ -233,8 +241,6 @@ describe("report configuration and input", () => {
         REPORT_ID: "42",
         JOB_NAME: "venue-report-123",
         REPORT_CRONJOB_NAME: "venue-report",
-        KUBERNETES_SERVICE_HOST: "10.0.0.1",
-        KUBERNETES_SERVICE_PORT: "443",
       })
     ).toMatchObject({
       REPORT_RUNNER: "kubernetes",
@@ -242,7 +248,6 @@ describe("report configuration and input", () => {
       REPORT_ID: 42,
       JOB_NAME: "venue-report-123",
       REPORT_CRONJOB_NAME: "venue-report",
-      KUBERNETES_SERVICE_PORT: 443,
     })
   })
 
@@ -252,7 +257,6 @@ describe("report configuration and input", () => {
     { REPORT_WINDOW_DAYS: "367" },
     { REPORT_ID: "-1" },
     { JOB_NAME: "INVALID" },
-    { KUBERNETES_SERVICE_PORT: "65536" },
   ])("rejects invalid report config %j", (env) => {
     expect(() =>
       loadConfig({ DATABASE_URL: "postgres://test", ...env })

@@ -100,8 +100,6 @@ spec:
             # $(VAR) is expanded from the envFrom values.
             - name: DATABASE_URL
               value: postgres://$(POSTGRES_USER):$(POSTGRES_PASSWORD)@postgres:5432/$(POSTGRES_DB)
-            - name: NODE_EXTRA_CA_CERTS
-              value: /var/run/secrets/kubernetes.io/serviceaccount/ca.crt
           # Migrations run at startup (under an advisory lock), so allow time before readiness.
           startupProbe:
             httpGet:

@@ -1,10 +1,11 @@
 import { hostname } from "node:os"
+import { ApiException, type V1Job } from "@kubernetes/client-node"
 import { beforeEach, describe, expect, it, vi } from "vitest"
 
 import { reports, reservations } from "../../apps/api/src/db/schema"
 import {
+  type BatchClient,
   createKubernetesLauncher,
-  type ReportJob,
 } from "../../apps/api/src/reports/launcher"
 import {
   aggregateReport,
@@ -318,20 +319,21 @@ describe("inline reports", () => {
 })
 
 describe("Kubernetes reports", () => {
-  let job: ReportJob | null = {}
+  let job: V1Job | null = {}
   let createStatus = 201
-  const request = vi.fn<typeof fetch>()
+  const batch = {
+    readNamespacedCronJob: vi.fn<BatchClient["readNamespacedCronJob"]>(),
+    createNamespacedJob: vi.fn<BatchClient["createNamespacedJob"]>(),
+    readNamespacedJob: vi.fn<BatchClient["readNamespacedJob"]>(),
+  }
   const launcher = createKubernetesLauncher(
-    { host: "10.0.0.1" },
-    {
-      fetch: request,
-      readSecret: async (name) =>
-        name === "namespace" ? "venue-booking" : "test-token",
-    }
+    {},
+    { batch, namespace: "venue-booking" }
   )
   const api = setupTestApi({ reportLauncher: launcher })
   const template = {
     spec: {
+      schedule: "*/2 * * * *",
       jobTemplate: {
         spec: {
           backoffLimit: 0,
@@ -350,11 +352,17 @@ describe("Kubernetes reports", () => {
   beforeEach(() => {
     job = {}
     createStatus = 201
-    request.mockReset().mockImplementation(async (url, init) => {
-      if (String(url).includes("/cronjobs/")) return Response.json(template)
-      if (init?.method === "POST")
-        return new Response(null, { status: createStatus })
-      return job ? Response.json(job) : new Response(null, { status: 404 })
+    batch.readNamespacedCronJob.mockReset().mockResolvedValue(template)
+    batch.createNamespacedJob
+      .mockReset()
+      .mockImplementation(async ({ body }) => {
+        if (createStatus !== 201)
+          throw new ApiException(createStatus, "", "", {})
+        return body
+      })
+    batch.readNamespacedJob.mockReset().mockImplementation(async () => {
+      if (!job) throw new ApiException(404, "", "", {})
+      return job
     })
   })
 
@@ -365,12 +373,9 @@ describe("Kubernetes reports", () => {
     expect(body.jobName).toMatch(
       new RegExp(`^venue-report-manual-${body.id}-[a-z0-9]{5}$`)
     )
-    const posted = JSON.parse(
-      request.mock.calls.find(([, init]) => init?.method === "POST")![1]!
-        .body as string
-    )
-    expect(posted.metadata.name).toBe(body.jobName)
-    expect(posted.spec.template.spec.containers[0].env).toContainEqual({
+    const posted = batch.createNamespacedJob.mock.calls[0]![0].body
+    expect(posted.metadata?.name).toBe(body.jobName)
+    expect(posted.spec?.template.spec?.containers[0]!.env).toContainEqual({
       name: "REPORT_ID",
       value: String(body.id),
     })
@@ -401,7 +406,8 @@ describe("Kubernetes reports", () => {
 
   it("marks a launch failure failed and returns a sanitised 503", async () => {
     const error = new Error("postgres://user:password@database secret-token")
-    request.mockRejectedValue(error)
+    batch.readNamespacedCronJob.mockRejectedValue(error)
+    batch.readNamespacedJob.mockRejectedValue(error)
     const log = vi.spyOn(console, "error").mockImplementation(() => {})
     try {
       const response = await api.post("/reports", range)
@@ -424,9 +430,7 @@ describe("Kubernetes reports", () => {
     async (exists) => {
       job = exists ? {} : null
       const error = new Error("Job creation connection lost")
-      request
-        .mockResolvedValueOnce(Response.json(template))
-        .mockRejectedValueOnce(error)
+      batch.createNamespacedJob.mockRejectedValueOnce(error)
       const log = vi.spyOn(console, "error").mockImplementation(() => {})
       try {
         const response = await api.post("/reports", range)
@@ -437,7 +441,9 @@ describe("Kubernetes reports", () => {
           error: exists ? null : "Report runner is unavailable",
         })
         expect(row!.finishedAt === null).toBe(exists)
-        expect(request.mock.calls[2]![0]).toContain(`/jobs/${row!.jobName}`)
+        expect(batch.readNamespacedJob.mock.calls[0]![0].name).toBe(
+          row!.jobName
+        )
         expect(log).toHaveBeenCalledWith(error)
       } finally {
         log.mockRestore()
@@ -471,17 +477,17 @@ describe("Kubernetes reports", () => {
     const { body } = await api.post("/reports", range)
     job = { status: { conditions: [{ type: "Complete", status: "True" }] } }
     expect((await api.get(`/reports/${body.id}`)).body.status).toBe("pending")
-    request.mockRejectedValue(new Error("Kubernetes unavailable"))
+    batch.readNamespacedJob.mockRejectedValue(
+      new Error("Kubernetes unavailable")
+    )
     expect((await api.get(`/reports/${body.id}`)).body.status).toBe("pending")
   })
 
   it("does not overwrite a worker that completes while reconciliation reads the Job", async () => {
     const { body } = await api.post("/reports", range)
-    request.mockImplementationOnce(async () => {
+    batch.readNamespacedJob.mockImplementationOnce(async () => {
       await runReport(api.db, body.id, body.jobName)
-      return Response.json({
-        status: { conditions: [{ type: "Failed", status: "True" }] },
-      })
+      return { status: { conditions: [{ type: "Failed", status: "True" }] } }
     })
     expect((await api.get(`/reports/${body.id}`)).body).toMatchObject({
       status: "succeeded",
@@ -495,12 +501,10 @@ describe("Kubernetes reports", () => {
       .insert(reports)
       .values({ trigger: "scheduled", ...range, jobName: "old-scheduled" })
       .returning()
-    request.mockImplementationOnce(async () => {
+    batch.readNamespacedJob.mockImplementationOnce(async () => {
       await api.db
         .$client`update reports set job_name = 'new-scheduled' where id = ${row!.id}`
-      return Response.json({
-        status: { conditions: [{ type: "Failed", status: "True" }] },
-      })
+      return { status: { conditions: [{ type: "Failed", status: "True" }] } }
     })
     expect((await api.get(`/reports/${row!.id}`)).body).toMatchObject({
       status: "pending",

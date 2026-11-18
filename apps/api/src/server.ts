@@ -23,11 +23,7 @@ const app = createApp({
   logRequests: true,
   reportLauncher:
     config.REPORT_RUNNER === "kubernetes"
-      ? createKubernetesLauncher({
-          host: config.KUBERNETES_SERVICE_HOST,
-          port: config.KUBERNETES_SERVICE_PORT,
-          cronJobName: config.REPORT_CRONJOB_NAME,
-        })
+      ? createKubernetesLauncher({ cronJobName: config.REPORT_CRONJOB_NAME })
       : undefined,
 })
 
