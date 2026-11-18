@@ -1,12 +1,20 @@
+import { readFile } from "node:fs/promises"
 import {
   ApiException,
+  BatchV1Api,
+  createConfiguration,
   HttpMethod,
+  Observable,
   RequestContext,
+  ResponseContext,
+  SelfDecodingBody,
+  ServerConfiguration,
   type V1CronJob,
   type V1Job,
   type V1JobCondition,
 } from "@kubernetes/client-node"
 import { describe, expect, it, vi } from "vitest"
+import { parse } from "yaml"
 
 import { CreateReportInputSchema } from "../../packages/contracts/src/schemas"
 import { loadConfig } from "../../apps/api/src/config"
@@ -225,6 +233,50 @@ describe("Kubernetes launcher", () => {
     await expect(launcher.launch(1, "manual-1")).rejects.toThrow(
       /^Could not create report Job \(HTTP 403\)$/
     )
+  })
+
+  it("sends every field of the shipped CronJob template through the client's serializer", async () => {
+    // Parsed without the client's models, so a field they do not know would show up as a difference.
+    const manifest = parse(
+      await readFile(
+        new URL("../../deploy/k8s/report-cronjob.yaml", import.meta.url),
+        "utf8"
+      )
+    )
+    let posted: string | undefined
+    const batch = new BatchV1Api(
+      createConfiguration({
+        baseServer: new ServerConfiguration("https://kubernetes.test", {}),
+        httpApi: {
+          send(request) {
+            const post = request.getHttpMethod() === HttpMethod.POST
+            if (post) posted = request.getBody() as string
+            const body = Buffer.from(post ? posted! : JSON.stringify(manifest))
+            return new Observable(
+              Promise.resolve(
+                new ResponseContext(
+                  post ? 201 : 200,
+                  { "content-type": "application/json" },
+                  new SelfDecodingBody(Promise.resolve(body))
+                )
+              )
+            )
+          },
+        },
+      })
+    )
+    await createKubernetesLauncher(
+      {},
+      { batch, namespace: "venue-booking" }
+    ).launch(5, "venue-report-manual-5-abc12")
+
+    const expected = structuredClone(manifest.spec.jobTemplate.spec)
+    expected.template.metadata.labels["venue-booking/report-id"] = "5"
+    expected.template.spec.containers[0].env.push({
+      name: "REPORT_ID",
+      value: "5",
+    })
+    expect(JSON.parse(posted!).spec).toEqual(expected)
   })
 
   it("fails a call when no namespace is known", async () => {
