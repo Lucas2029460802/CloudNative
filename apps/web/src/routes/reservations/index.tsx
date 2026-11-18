@@ -4,6 +4,7 @@ import { IdSchema, ReservationStatusSchema } from "@venue/contracts"
 import { ArrowRightIcon, SearchIcon, SlidersHorizontalIcon } from "lucide-react"
 import { useEffect, useRef, useState } from "react"
 import { useTranslation } from "react-i18next"
+import { useDebouncedCallback } from "use-debounce"
 
 import { LoadErrorState } from "@/components/page-states"
 import { Button } from "@/components/ui/button"
@@ -68,8 +69,10 @@ function ReservationsPage() {
 
   const queryRef = useRef<HTMLInputElement>(null)
   const submittedQuery = useRef<string | null>(null)
-  const searchTimer = useRef<ReturnType<typeof setTimeout>>(undefined)
-  useEffect(() => () => clearTimeout(searchTimer.current), [])
+  const changeQuery = useDebouncedCallback((value: string) => {
+    submittedQuery.current = value
+    setSearch({ q: value.trim() || undefined })
+  }, 300)
   useEffect(() => {
     // Our own debounced URL update should preserve the exact text being typed,
     // including spaces. Returning to another query restores its saved value.
@@ -78,19 +81,12 @@ function ReservationsPage() {
       (submittedQuery.current.trim() || undefined) === search.q
     submittedQuery.current = null
     if (ownUpdate) return
-    clearTimeout(searchTimer.current)
+    changeQuery.cancel()
     if (queryRef.current) queryRef.current.value = search.q ?? ""
-  }, [search.q])
-  function changeQuery(value: string) {
-    clearTimeout(searchTimer.current)
-    searchTimer.current = setTimeout(() => {
-      submittedQuery.current = value
-      setSearch({ q: value.trim() || undefined })
-    }, 300)
-  }
+  }, [search.q, changeQuery])
 
   function clearFilters() {
-    clearTimeout(searchTimer.current)
+    changeQuery.cancel()
     submittedQuery.current = null
     if (queryRef.current) queryRef.current.value = ""
     void navigate({ search: {}, replace: true })
