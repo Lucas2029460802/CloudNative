@@ -1,0 +1,29 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8" />
+    <title>$title</title>
+    <base href="$base" />
+    <!-- StackEdit's own export stylesheet, then KaTeX and Prism as StackEdit uses them. -->
+    <link rel="stylesheet" href="https://stackedit.io/style.css" />
+    <script src="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/contrib/auto-render.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/components/prism-core.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/plugins/autoloader/prism-autoloader.min.js"></script>
+    <style>
+      $style
+    </style>
+  </head>
+  <body class="stackedit stackedit--pdf">
+    <div class="stackedit__html">$body</div>
+    <script>
+      Prism.highlightAll()
+      renderMathInElement(document.body, {
+        delimiters: [
+          { left: "$$$$", right: "$$$$", display: true },
+          { left: "$$", right: "$$", display: false },
+        ],
+      })
+    </script>
+  </body>
+</html>

@@ -1,6 +1,11 @@
 {
   "$schema": "https://unpkg.com/knip@6/schema.json",
-  "ignore": [".agents/**", "apps/web/src/components/ui/**"],
+  "ignore": [
+    ".agents/**",
+    "apps/web/src/components/ui/**",
+    "scripts/md-to-pdf/**"
+  ],
+  "ignoreBinaries": ["uv"],
   "ignoreDependencies": [
     "@playwright/cli",
     "@fontsource/noto-sans-sc",

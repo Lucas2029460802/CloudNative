@@ -1,0 +1,86 @@
+/* Print layout on top of StackEdit's stylesheet. layout.js sets the custom properties. */
+
+html {
+  zoom: var(--zoom, 1);
+}
+
+.stackedit {
+  font-family:
+    Lato, "Helvetica Neue", Helvetica, "PingFang SC", "Microsoft YaHei",
+    "Noto Sans CJK SC", "Noto Sans SC", sans-serif;
+}
+
+/* StackEdit's 180px bottom margin would push the last block off a page that has room for it. */
+.stackedit__html {
+  margin-bottom: 0;
+}
+
+.stackedit__html > :first-child {
+  margin-top: 0;
+}
+
+li {
+  padding-bottom: 1px;
+}
+
+/* Headings stay with what follows; layout.js boxes stacked headings in .keep. */
+h1,
+h2,
+h3,
+h4,
+h5,
+h6 {
+  break-after: avoid;
+}
+
+.keep {
+  break-inside: avoid;
+}
+
+/* Long lines wrap instead of being cut off; layout.js first shrinks wide blocks. */
+pre,
+pre code {
+  white-space: pre-wrap;
+  overflow: visible;
+  overflow-wrap: anywhere;
+}
+
+/* One block per line in plain-text code, so a wrapped line gets a hanging indent. */
+pre code .ln {
+  display: block;
+  padding-left: 2ch;
+  text-indent: -2ch;
+}
+
+table {
+  font-size: 0.92em;
+}
+
+td,
+th {
+  padding: 5px 9px;
+}
+
+td.short,
+th.short {
+  white-space: nowrap;
+}
+
+tr {
+  break-inside: avoid;
+}
+
+/* Images fit on one page and stay with the caption paragraph that follows. */
+p:has(> img) {
+  text-align: center;
+  break-inside: avoid;
+}
+
+p:has(> img) + p:not(:has(> img)) {
+  break-before: avoid;
+}
+
+img {
+  max-height: var(--image-max-height, none);
+  width: auto;
+}
