@@ -9,6 +9,7 @@ Tested with minikube (docker driver, one node, StorageClass `standard`) and kube
 ## Architecture
 
 <!-- Source: docs/report-assets/diagrams/lab2-architecture.en.mmd; re-render with `bun run diagrams` -->
+
 ![Kubernetes architecture in namespace venue-booking: Service web (NodePort) to Deployment web, /api/* to Service api and Deployment api, SQL to the postgres StatefulSet through a headless Service; the CronJob creates scheduled report Jobs, the API asks kube-apiserver over HTTPS to create manual report Jobs, and the fluent-bit DaemonSet reads /var/log/containers](../../docs/report-assets/diagrams/lab2-architecture.en.png)
 
 Only `web` is reachable from outside the cluster. `api` and `postgres` have cluster-internal addresses only.
