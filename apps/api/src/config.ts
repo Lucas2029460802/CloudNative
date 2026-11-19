@@ -33,13 +33,6 @@ const EnvSchema = z.object({
     .regex(/^[a-z0-9]([-a-z0-9.]*[a-z0-9])?$/)
     .max(63)
     .optional(),
-  KUBERNETES_SERVICE_HOST: z.string().min(1).optional(),
-  KUBERNETES_SERVICE_PORT: z.coerce
-    .number()
-    .int()
-    .min(1)
-    .max(65_535)
-    .optional(),
 })
 
 export function loadConfig(env: NodeJS.ProcessEnv = process.env) {

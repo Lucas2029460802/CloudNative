@@ -1,3 +1,4 @@
+import { useDebouncer } from "@tanstack/react-pacer"
 import { keepPreviousData, useQuery } from "@tanstack/react-query"
 import { createFileRoute } from "@tanstack/react-router"
 import { IdSchema, ReservationStatusSchema } from "@venue/contracts"
@@ -68,8 +69,14 @@ function ReservationsPage() {
 
   const queryRef = useRef<HTMLInputElement>(null)
   const submittedQuery = useRef<string | null>(null)
-  const searchTimer = useRef<ReturnType<typeof setTimeout>>(undefined)
-  useEffect(() => () => clearTimeout(searchTimer.current), [])
+  // Timer-based (no Date.now()), so a frozen test clock cannot stall it; cancelled on unmount.
+  const queryDebouncer = useDebouncer(
+    (value: string) => {
+      submittedQuery.current = value
+      setSearch({ q: value.trim() || undefined })
+    },
+    { wait: 300 }
+  )
   useEffect(() => {
     // Our own debounced URL update should preserve the exact text being typed,
     // including spaces. Returning to another query restores its saved value.
@@ -78,19 +85,12 @@ function ReservationsPage() {
       (submittedQuery.current.trim() || undefined) === search.q
     submittedQuery.current = null
     if (ownUpdate) return
-    clearTimeout(searchTimer.current)
+    queryDebouncer.cancel()
     if (queryRef.current) queryRef.current.value = search.q ?? ""
-  }, [search.q])
-  function changeQuery(value: string) {
-    clearTimeout(searchTimer.current)
-    searchTimer.current = setTimeout(() => {
-      submittedQuery.current = value
-      setSearch({ q: value.trim() || undefined })
-    }, 300)
-  }
+  }, [search.q, queryDebouncer])
 
   function clearFilters() {
-    clearTimeout(searchTimer.current)
+    queryDebouncer.cancel()
     submittedQuery.current = null
     if (queryRef.current) queryRef.current.value = ""
     void navigate({ search: {}, replace: true })
@@ -227,7 +227,9 @@ function ReservationsPage() {
               ref={queryRef}
               type="search"
               defaultValue={search.q ?? ""}
-              onChange={(event) => changeQuery(event.target.value)}
+              onChange={(event) =>
+                queryDebouncer.maybeExecute(event.target.value)
+              }
               placeholder={t("reservations.search")}
               aria-label={t("reservations.search")}
               maxLength={100}

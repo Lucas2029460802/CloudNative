@@ -1,29 +1,36 @@
 import i18n from "i18next"
+import LanguageDetector from "i18next-browser-languagedetector"
 import { initReactI18next } from "react-i18next"
 
 import { en } from "@/locales/en"
 import { zhCN } from "@/locales/zh-CN"
 
-// A saved choice wins; otherwise the first browser language we support, mapping
-// any Chinese locale (zh, zh-Hans, zh-TW…) to Simplified Chinese.
-const browserLanguage = navigator.languages
-  .map((tag) => tag.toLowerCase())
-  .find((tag) => tag.startsWith("zh") || tag.startsWith("en"))
-
 i18n.on("languageChanged", (language) => {
   document.documentElement.lang = language
-  localStorage.setItem("language", language)
 })
 
-void i18n.use(initReactI18next).init({
-  resources: {
-    en: { translation: en },
-    "zh-CN": { translation: zhCN },
-  },
-  lng:
-    localStorage.getItem("language") ??
-    (browserLanguage?.startsWith("zh") ? "zh-CN" : "en"),
-  supportedLngs: ["en", "zh-CN"],
-  fallbackLng: "en",
-  interpolation: { escapeValue: false },
-})
+void i18n
+  .use(LanguageDetector)
+  .use(initReactI18next)
+  .init({
+    resources: {
+      en: { translation: en },
+      "zh-CN": { translation: zhCN },
+    },
+    supportedLngs: ["en", "zh-CN"],
+    fallbackLng: "en",
+    // A saved choice wins; otherwise the first browser language we support, mapping
+    // any Chinese locale (zh, zh-Hans, zh-TW…) to Simplified Chinese.
+    detection: {
+      order: ["localStorage", "navigator"],
+      lookupLocalStorage: "language",
+      caches: ["localStorage"],
+      convertDetectedLanguage: (tag) =>
+        tag.toLowerCase().startsWith("zh")
+          ? "zh-CN"
+          : tag.toLowerCase().startsWith("en")
+            ? "en"
+            : tag,
+    },
+    interpolation: { escapeValue: false },
+  })
