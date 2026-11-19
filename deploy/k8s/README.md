@@ -8,26 +8,8 @@ Tested with minikube (docker driver, one node, StorageClass `standard`) and kube
 
 ## Architecture
 
-```mermaid
-flowchart LR
-  browser([Browser]) -->|"minikube service tunnel"| websvc
-  logs[("node: /var/log/containers")]
-  apiserver[["kube-apiserver"]]
-
-  subgraph ns["namespace venue-booking"]
-    websvc{{"Service web<br/>NodePort :8080"}} --> web["Deployment web ×2<br/>nginx + React"]
-    web -->|"/api/*"| apisvc{{"Service api<br/>ClusterIP :3000"}}
-    apisvc --> api["Deployment api ×3<br/>Node.js"]
-    api -->|SQL| pgsvc{{"Service postgres<br/>headless :5432"}}
-    pgsvc --> pg[("StatefulSet postgres ×1<br/>PVC data-postgres-0, 1Gi")]
-    cron["CronJob venue-report<br/>every 2 minutes"] -->|creates| job
-    job["Job venue-report-*<br/>node dist/report.js"] -->|SQL| pgsvc
-    fb["DaemonSet fluent-bit<br/>one pod per node"]
-  end
-
-  api -->|"POST a Job (Run report)"| apiserver -->|creates| job
-  logs -->|read-only| fb
-```
+<!-- Source: docs/report-assets/diagrams/lab2-architecture.en.mmd; re-render with `bun run diagrams` -->
+![Kubernetes architecture in namespace venue-booking: Service web (NodePort) to Deployment web, /api/* to Service api and Deployment api, SQL to the postgres StatefulSet through a headless Service; the CronJob creates scheduled report Jobs, the API asks kube-apiserver over HTTPS to create manual report Jobs, and the fluent-bit DaemonSet reads /var/log/containers](../../docs/report-assets/diagrams/lab2-architecture.en.png)
 
 Only `web` is reachable from outside the cluster. `api` and `postgres` have cluster-internal addresses only.
 A report runs either when someone clicks "Run report" (the API asks Kubernetes to create a Job) or on the
