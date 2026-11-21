@@ -16,18 +16,14 @@ People pick a day, see when each campus venue is free, book a time slot, and get
 
 ## Architecture
 
-```mermaid
-flowchart LR
-  browser([Browser]) -->|"HTTP :8080"| frontend["frontend<br/>nginx + static React build"]
-  frontend -->|"/api/* reverse proxy"| api["api<br/>Node.js :3000<br/>Hono + oRPC REST API"]
-  api -->|SQL| database[("database<br/>PostgreSQL :5432<br/>named volume database-data")]
-```
+<!-- Source: docs/report-assets/diagrams/lab1-runtime.en.mmd; re-render with `bun run diagrams` -->
+<img src="docs/report-assets/diagrams/lab1-runtime.en.png" width="450" alt="Docker Compose runtime: the browser reaches frontend (frontend-net) on host port 8080, frontend proxies /api to api on both networks, and api reaches database over backend-net; database mounts the named volume database-data">
 
 | Container  | Image                          | Responsibility                                                  | Networks                      | Published port |
 | ---------- | ------------------------------ | --------------------------------------------------------------- | ----------------------------- | -------------- |
 | `frontend` | `venue-booking/frontend:1.0.0` | Serves the UI and proxies `/api` to the API                     | `frontend-net`                | `8080` (host)  |
 | `api`      | `venue-booking/api:1.0.0`      | REST API, validation, conflict checks, migrations and seed data | `frontend-net`, `backend-net` | none           |
-| `database` | `postgres:18.6-alpine3.24`     | Persists venues and reservations in the `database-data` volume  | `backend-net`                 | none           |
+| `database` | `postgres:18.7-alpine3.24`     | Persists venues and reservations in the `database-data` volume  | `backend-net`                 | none           |
 
 The browser only talks to the frontend origin, so no CORS setup is needed and the API base URL needs no build-time configuration. The frontend container is not attached to `backend-net`: it cannot resolve or reach the database.
 
@@ -157,7 +153,7 @@ The API also reads these optional report variables, which are not in `.env`. Com
 
 Both Dockerfiles use the repository root as build context and a root `.dockerignore` that excludes `node_modules`, build output, `.env` files, Git data, tests, and docs.
 
-- `deploy/api/Dockerfile`: stage one (`oven/bun:1.4.4-alpine`) installs only the API's workspace dependencies from the lockfile and bundles the API and the report worker with `bun build` into `dist/server.js` and `dist/report.js`. The runtime stage (`node:26.13.0-alpine3.24`) contains just those bundles and the SQL migrations: no source code, `node_modules`, or build tools. It runs as the unprivileged `node` user and listens on port 3000.
+- `deploy/api/Dockerfile`: stage one (`oven/bun:1.4.5-alpine`) installs only the API's workspace dependencies from the lockfile and bundles the API and the report worker with `bun build` into `dist/server.js` and `dist/report.js`. The runtime stage (`node:26.13.1-alpine3.24`) contains just those bundles and the SQL migrations: no source code, `node_modules`, or build tools. It runs as the unprivileged `node` user and listens on port 3000.
 - `deploy/web/Dockerfile`: stage one builds the React app with Vite. The runtime stage (`nginxinc/nginx-unprivileged:1.31.7-alpine3.24`) serves the static files as uid 101 on port 8080, proxies `/api/` to `API_UPSTREAM` (default `http://api:3000`), and falls back to `index.html` for client-side routes. The proxy resolves the API host per request, so a recreated API container is found again.
 
 To build an image on its own:
