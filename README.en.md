@@ -16,12 +16,8 @@ People pick a day, see when each campus venue is free, book a time slot, and get
 
 ## Architecture
 
-```mermaid
-flowchart LR
-  browser([Browser]) -->|"HTTP :8080"| frontend["frontend<br/>nginx + static React build"]
-  frontend -->|"/api/* reverse proxy"| api["api<br/>Node.js :3000<br/>Hono + oRPC REST API"]
-  api -->|SQL| database[("database<br/>PostgreSQL :5432<br/>named volume database-data")]
-```
+<!-- Source: docs/report-assets/diagrams/lab1-runtime.en.mmd; re-render with `bun run diagrams` -->
+<img src="docs/report-assets/diagrams/lab1-runtime.en.png" width="450" alt="Docker Compose runtime: the browser reaches frontend (frontend-net) on host port 8080, frontend proxies /api to api on both networks, and api reaches database over backend-net; database mounts the named volume database-data">
 
 | Container  | Image                          | Responsibility                                                  | Networks                      | Published port |
 | ---------- | ------------------------------ | --------------------------------------------------------------- | ----------------------------- | -------------- |

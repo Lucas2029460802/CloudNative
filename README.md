@@ -32,12 +32,8 @@ docker compose up --build -d
 
 ## 系统架构
 
-```mermaid
-flowchart LR
-  browser([浏览器]) -->|"HTTP :8080"| frontend["frontend<br/>nginx + React 静态资源"]
-  frontend -->|"/api/* 反向代理"| api["api<br/>Node.js :3000<br/>Hono + oRPC REST API"]
-  api -->|SQL| database[("database<br/>PostgreSQL :5432<br/>命名卷 database-data")]
-```
+<!-- 源文件：docs/report-assets/diagrams/lab1-runtime.mmd，用 `bun run diagrams` 重新渲染 -->
+<img src="docs/report-assets/diagrams/lab1-runtime.png" width="450" alt="Docker Compose 运行时：浏览器经主机 8080 端口访问 frontend（frontend-net），frontend 把 /api 反向代理到同时接入两个网络的 api，api 经 backend-net 连接挂载命名卷 database-data 的 database">
 
 | 容器       | 镜像                           | 职责                                         | 网络                          | 对外端口       |
 | ---------- | ------------------------------ | -------------------------------------------- | ----------------------------- | -------------- |
