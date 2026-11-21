@@ -109,6 +109,66 @@ jobs:
         if: always()
         run: docker compose down -v
 
+  # Deploys deploy/k8s to a throwaway kind cluster and runs the API and report
+  # tests through the web Service. On Kubernetes the API starts each report as
+  # a Job through the Kubernetes API, so this job tests the RBAC and the Job
+  # template that the compose-e2e job never touches.
+  k8s-e2e:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2.2.0
+        with:
+          bun-version: 1.4.5
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: 24
+      - run: bun install --frozen-lockfile
+      - uses: helm/kind-action@ea822c7bf1874f08e5a491df991c228edffc3376 # v1.15.2
+        with:
+          cluster_name: venue-booking
+      - name: Build the images and load them into kind
+        run: |
+          # The manifests pull no images: both must already be on the node,
+          # tagged with the one newTag that kustomization.yaml sets.
+          tag=$(awk '/newTag:/ {print $2}' deploy/k8s/kustomization.yaml | sort -u)
+          if [ "$(echo "$tag" | wc -l)" -ne 1 ]; then
+            echo "The images in kustomization.yaml have different newTag values: $tag"
+            exit 1
+          fi
+          cp .env.example .env
+          IMAGE_TAG=$tag docker compose build api frontend
+          kind load docker-image --name venue-booking venue-booking/api:$tag venue-booking/frontend:$tag
+      - name: Deploy
+        run: |
+          cp deploy/k8s/secret.env.example deploy/k8s/secret.env
+          kubectl apply -k deploy/k8s
+          kubectl -n venue-booking rollout status deploy/api deploy/web sts/postgres ds/fluent-bit --timeout=5m
+      - run: bunx playwright install --with-deps chromium
+      - name: Run the API and report tests
+        run: |
+          kubectl -n venue-booking port-forward svc/web 8080:8080 > port-forward.log 2>&1 &
+          timeout 60 sh -c 'until curl -fs http://localhost:8080/api/health > /dev/null; do sleep 1; done'
+          bun run test:e2e tests/e2e/api.spec.ts tests/e2e/reports.spec.ts
+      # The report test passes with REPORT_RUNNER=inline too, so check that a
+      # Job really ran. Scheduled Jobs from the CronJob have no report-id label.
+      - name: Check that the report ran as a Job
+        run: kubectl -n venue-booking wait job -l venue-booking/report-id --for=condition=Complete --timeout=2m
+      - name: Show cluster state
+        if: failure()
+        run: |
+          kubectl -n venue-booking get all,pvc,events -o wide
+          kubectl -n venue-booking describe pods
+          kubectl -n venue-booking logs -l app.kubernetes.io/part-of=venue-booking --all-containers --prefix --tail=100 --max-log-requests=20
+          cat port-forward.log
+      - name: Upload test reports
+        if: failure()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: k8s-e2e-reports
+          path: test-results/
+
   # The report PDF tool is a uv project; lint, format and type-check it. No
   # browser is needed for these checks.
   md-to-pdf:
@@ -129,7 +189,7 @@ jobs:
   # job above succeeded. always() makes it report even when one of them failed.
   quality-gate:
     if: always()
-    needs: [lint, test, build, compose-e2e, md-to-pdf]
+    needs: [lint, test, build, compose-e2e, k8s-e2e, md-to-pdf]
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:

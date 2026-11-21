@@ -5,6 +5,7 @@ StatefulSet with a PVC, the `venue-report` CronJob (also the template for manual
 `fluent-bit` DaemonSet. Everything lives in the `venue-booking` namespace.
 
 Tested with minikube (docker driver, one node, StorageClass `standard`) and kubectl's built-in Kustomize.
+The `k8s-e2e` CI job deploys the same manifests to a kind cluster and runs the API and report end-to-end tests against it.
 
 ## Architecture
 
