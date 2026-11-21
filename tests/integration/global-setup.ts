@@ -12,7 +12,7 @@ declare module "vitest" {
   }
 }
 
-const POSTGRES_IMAGE = "postgres:18.6-alpine3.24"
+const POSTGRES_IMAGE = "postgres:18.7-alpine3.24"
 const migrationsFolder = fileURLToPath(
   new URL("../../apps/api/drizzle", import.meta.url)
 )

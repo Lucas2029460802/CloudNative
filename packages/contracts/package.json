@@ -9,7 +9,7 @@
     "typecheck": "tsc -b"
   },
   "dependencies": {
-    "@orpc/contract": "1",
+    "@orpc/contract": "^1.16.4",
     "zod": "^4.6.7"
   }
 }
