@@ -27,7 +27,7 @@ spec:
           effect: NoSchedule
       containers:
         - name: fluent-bit
-          image: fluent/fluent-bit:5.1.5
+          image: fluent/fluent-bit:5.2.0
           args: [--config=/fluent-bit/config/fluent-bit.yaml]
           volumeMounts:
             - name: config

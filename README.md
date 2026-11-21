@@ -43,7 +43,7 @@ flowchart LR
 | ---------- | ------------------------------ | -------------------------------------------- | ----------------------------- | -------------- |
 | `frontend` | `venue-booking/frontend:1.0.0` | 提供界面，并把 `/api` 请求转发给 API         | `frontend-net`                | `8080`（主机） |
 | `api`      | `venue-booking/api:1.0.0`      | REST API、参数校验、冲突检查、迁移与种子数据 | `frontend-net`、`backend-net` | 无             |
-| `database` | `postgres:18.6-alpine3.24`     | 将场地和预约数据持久化到 `database-data` 卷  | `backend-net`                 | 无             |
+| `database` | `postgres:18.7-alpine3.24`     | 将场地和预约数据持久化到 `database-data` 卷  | `backend-net`                 | 无             |
 
 浏览器只访问前端所在的源，因此无需配置 CORS，也无需在构建时指定 API 地址。`frontend` 容器没有接入 `backend-net`，既解析不到也连不上数据库。
 
@@ -173,7 +173,7 @@ API 还读取以下报表变量，均为可选，不在 `.env` 中。Compose 不
 
 两个 Dockerfile 都以仓库根目录为构建上下文，并共用根目录的 `.dockerignore`，排除 `node_modules`、构建产物、`.env` 文件、Git 数据、测试和文档。
 
-- `deploy/api/Dockerfile`：第一阶段（`oven/bun:1.4.4-alpine`）按锁文件只安装 API 所需的依赖，并用 `bun build` 把 API 和报表 Worker 分别打包成 `dist/server.js` 与 `dist/report.js`。运行阶段（`node:26.13.0-alpine3.24`）只包含这两个文件和 SQL 迁移，没有源码、`node_modules` 或构建工具；以非 root 的 `node` 用户运行，监听 3000 端口。
+- `deploy/api/Dockerfile`：第一阶段（`oven/bun:1.4.5-alpine`）按锁文件只安装 API 所需的依赖，并用 `bun build` 把 API 和报表 Worker 分别打包成 `dist/server.js` 与 `dist/report.js`。运行阶段（`node:26.13.1-alpine3.24`）只包含这两个文件和 SQL 迁移，没有源码、`node_modules` 或构建工具；以非 root 的 `node` 用户运行，监听 3000 端口。
 - `deploy/web/Dockerfile`：第一阶段用 Vite 构建 React 应用。运行阶段（`nginxinc/nginx-unprivileged:1.31.7-alpine3.24`）以 uid 101 在 8080 端口提供静态文件，把 `/api/` 转发到 `API_UPSTREAM`（默认 `http://api:3000`），并把前端路由回退到 `index.html`。代理在每次请求时解析 API 主机名，因此 API 容器重建后仍能连上。
 
 单独构建镜像：
