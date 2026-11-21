@@ -1,48 +1,38 @@
-import { readFile } from "node:fs/promises"
+import {
+  ApiException,
+  BatchV1Api,
+  KubeConfig,
+  Observable,
+  type ObservableMiddleware,
+  type V1CronJob,
+  type V1Job,
+} from "@kubernetes/client-node"
 import { eq } from "drizzle-orm"
 
 import type { Database } from "../db/client"
 import { reports } from "../db/schema"
 import { failReport, type ReportRecord } from "./run"
 
-type JobSpec = {
-  template: {
-    metadata?: { labels?: Record<string, string>; [key: string]: unknown }
-    spec: {
-      containers: {
-        name: string
-        env?: { name: string; [key: string]: unknown }[]
-        [key: string]: unknown
-      }[]
-      [key: string]: unknown
-    }
-    [key: string]: unknown
-  }
-  [key: string]: unknown
-}
-
-type CronJob = { spec: { jobTemplate: { spec: JobSpec } } }
-export type ReportJob = {
-  status?: {
-    conditions?: readonly { type: string; status: string; reason?: string }[]
-  }
-}
-
 export type ReportLauncher = {
   launch: (id: number, jobName: string) => Promise<void>
-  getJob: (jobName: string) => Promise<ReportJob | null>
+  getJob: (jobName: string) => Promise<V1Job | null>
 }
 
+export type BatchClient = Pick<
+  BatchV1Api,
+  "readNamespacedCronJob" | "createNamespacedJob" | "readNamespacedJob"
+>
+
 export function buildReportJob(
-  cronJob: CronJob,
+  cronJob: V1CronJob,
   reportId: number,
   jobName: string
-) {
-  const spec = structuredClone(cronJob.spec.jobTemplate.spec)
-  const container = spec.template.spec.containers.find(
+): V1Job {
+  const spec = structuredClone(cronJob.spec?.jobTemplate.spec)
+  const container = spec?.template.spec?.containers.find(
     (item) => item.name === "report"
   )
-  if (!container) throw new Error("CronJob has no report container")
+  if (!spec || !container) throw new Error("CronJob has no report container")
   container.env = [
     ...(container.env ?? []).filter((item) => item.name !== "REPORT_ID"),
     { name: "REPORT_ID", value: String(reportId) },
@@ -63,68 +53,84 @@ export function buildReportJob(
   }
 }
 
-export function reportJobFailure(job: ReportJob) {
+export function reportJobFailure(job: V1Job) {
   return job.status?.conditions?.find(
     (condition) => condition.type === "Failed" && condition.status === "True"
   )
 }
 
+/** Bounds every Kubernetes API call, so a stuck apiserver cannot hold a request open. */
+const timeout: ObservableMiddleware = {
+  pre: (request) => {
+    request.setSignal(AbortSignal.timeout(5000))
+    return new Observable(Promise.resolve(request))
+  },
+  post: (response) => new Observable(Promise.resolve(response)),
+}
+const options = {
+  middleware: [timeout],
+  middlewareMergeStrategy: "append" as const,
+}
+
+/** The ServiceAccount's in-cluster credentials: apiserver address, CA, rotating token, namespace. */
+function inClusterClient() {
+  const config = new KubeConfig()
+  config.loadFromCluster()
+  return {
+    batch: config.makeApiClient(BatchV1Api),
+    namespace: config.getContextObject(config.currentContext)?.namespace,
+  }
+}
+
+// Report only the HTTP status: the response body is not needed to diagnose RBAC or missing objects.
+function httpError(error: unknown, action: string) {
+  return error instanceof ApiException
+    ? new Error(`Could not ${action} (HTTP ${error.code})`)
+    : error
+}
+
 export function createKubernetesLauncher(
+  { cronJobName = "venue-report" }: { cronJobName?: string } = {},
   {
-    host,
-    port = 443,
-    cronJobName = "venue-report",
-  }: { host?: string; port?: number; cronJobName?: string },
-  {
-    fetch: request = fetch,
-    readSecret = (name: string) =>
-      readFile(`/var/run/secrets/kubernetes.io/serviceaccount/${name}`, "utf8"),
-  } = {}
+    batch,
+    namespace,
+  }: { batch: BatchClient; namespace?: string } = inClusterClient()
 ): ReportLauncher {
-  async function call(resource: string, init?: RequestInit) {
-    if (!host) throw new Error("Kubernetes service host is unavailable")
-    const namespace = (await readSecret("namespace")).trim()
-    const token = (await readSecret("token")).trim()
-    const address =
-      host.includes(":") && !host.startsWith("[") ? `[${host}]` : host
-    return request(
-      `https://${address}:${port}/apis/batch/v1/namespaces/${encodeURIComponent(namespace)}/${resource}`,
-      {
-        ...init,
-        headers: {
-          "content-type": "application/json",
-          authorization: `Bearer ${token}`,
-        },
-        signal: AbortSignal.timeout(5000),
-      }
-    )
+  function inNamespace() {
+    if (!namespace) throw new Error("Kubernetes namespace is unavailable")
+    return namespace
   }
 
   return {
     async launch(id, jobName) {
-      const template = await call(`cronjobs/${encodeURIComponent(cronJobName)}`)
-      if (!template.ok)
-        throw new Error(
-          `Could not read report CronJob (HTTP ${template.status})`
+      const cronJob = await batch
+        .readNamespacedCronJob(
+          { name: cronJobName, namespace: inNamespace() },
+          options
         )
-      const job = buildReportJob(
-        (await template.json()) as CronJob,
-        id,
-        jobName
-      )
-      const created = await call("jobs", {
-        method: "POST",
-        body: JSON.stringify(job),
-      })
-      if (!created.ok && created.status !== 409)
-        throw new Error(`Could not create report Job (HTTP ${created.status})`)
+        .catch((error: unknown) => {
+          throw httpError(error, "read report CronJob")
+        })
+      await batch
+        .createNamespacedJob(
+          {
+            namespace: inNamespace(),
+            body: buildReportJob(cronJob, id, jobName),
+          },
+          options
+        )
+        .catch((error: unknown) => {
+          if (!(error instanceof ApiException && error.code === 409))
+            throw httpError(error, "create report Job")
+        })
     },
     async getJob(jobName) {
-      const response = await call(`jobs/${encodeURIComponent(jobName)}`)
-      if (response.status === 404) return null
-      if (!response.ok)
-        throw new Error(`Could not read report Job (HTTP ${response.status})`)
-      return response.json() as Promise<ReportJob>
+      return batch
+        .readNamespacedJob({ name: jobName, namespace: inNamespace() }, options)
+        .catch((error: unknown) => {
+          if (error instanceof ApiException && error.code === 404) return null
+          throw httpError(error, "read report Job")
+        })
     },
   }
 }
@@ -137,7 +143,7 @@ export async function reconcileReport(
 ) {
   if (!row.jobName || (row.status !== "pending" && row.status !== "running"))
     return row
-  let job: ReportJob | null
+  let job: V1Job | null
   try {
     job = await launcher.getJob(row.jobName)
   } catch (error) {

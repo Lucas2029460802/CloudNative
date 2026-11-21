@@ -2,7 +2,7 @@
 // Usage: bun run diagrams. Mermaid and the fonts come from node_modules, so nothing is fetched
 // from the network and the output depends only on the locked dependency versions.
 import { readdir, readFile } from "node:fs/promises"
-import { extname, join, resolve } from "node:path"
+import { join, resolve } from "node:path"
 
 import { chromium } from "@playwright/test"
 
@@ -58,13 +58,6 @@ const page = `<!doctype html>
   document.body.dataset.ready = "1"
 </script>`
 
-const types: Record<string, string> = {
-  ".css": "text/css",
-  ".mjs": "text/javascript",
-  ".woff2": "font/woff2",
-  ".woff": "font/woff",
-}
-
 const sources = (await readdir(folder)).filter((name) => name.endsWith(".mmd"))
 const browser = await chromium.launch()
 try {
@@ -75,10 +68,8 @@ try {
       return route.fulfill({ contentType: "text/html", body: page })
     const file = join(root, decodeURIComponent(path))
     if (!file.startsWith(join(root, "node_modules"))) return route.abort()
-    return route.fulfill({
-      contentType: types[extname(file)] ?? "application/octet-stream",
-      body: await readFile(file),
-    })
+    // Playwright infers the content type from the file extension.
+    return route.fulfill({ path: file })
   })
   tab.on("pageerror", (error) => console.error(error))
   await tab.goto(`${origin}/`)

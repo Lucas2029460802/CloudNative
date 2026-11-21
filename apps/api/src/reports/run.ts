@@ -1,18 +1,19 @@
+import { tz } from "@date-fns/tz"
 import type { Report, VenueUtilisation } from "@venue/contracts"
+import { addDays, format } from "date-fns"
 import { and, asc, eq, inArray, isNull, sql } from "drizzle-orm"
 
 import type { Database } from "../db/client"
 import { reports, reservations, venues } from "../db/schema"
-import { wallClock } from "../lib/time"
 
 export type ReportRecord = typeof reports.$inferSelect
 type Transaction = Parameters<Parameters<Database["transaction"]>[0]>[0]
 
 export function scheduledWindow(now: Date, timeZone: string, days: number) {
-  const from = wallClock(now, timeZone).date
-  const end = new Date(`${from}T00:00:00Z`)
-  end.setUTCDate(end.getUTCDate() + days - 1)
-  return { from, to: end.toISOString().slice(0, 10) }
+  const from = format(now, "yyyy-MM-dd", { in: tz(timeZone) })
+  // Count calendar days in UTC: a DST gap in `timeZone` must not move the last date.
+  const utc = { in: tz("UTC") }
+  return { from, to: format(addDays(from, days - 1, utc), "yyyy-MM-dd", utc) }
 }
 
 export function toReport(row: ReportRecord): Report {
