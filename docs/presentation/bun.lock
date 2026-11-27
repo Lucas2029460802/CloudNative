@@ -14,6 +14,7 @@
       "devDependencies": {
         "@axe-core/playwright": "^4.14.1",
         "@remotion/cli": "^4.0.547",
+        "@slidev/parser": "53.2.0",
         "@types/bun": "^1.4.5",
         "@types/react": "^19.3.3",
         "playwright-chromium": "^1.65.1",

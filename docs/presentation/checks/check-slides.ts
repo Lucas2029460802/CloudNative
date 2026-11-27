@@ -1,5 +1,6 @@
 import path from "node:path"
 import { AxeBuilder } from "@axe-core/playwright"
+import { parse } from "@slidev/parser"
 import { chromium, type Page } from "playwright-chromium"
 
 type Finding = {
@@ -40,71 +41,13 @@ function truncate(text: string, maxLen: number): string {
   return `${singleLine.slice(0, maxLen - 1)}…`
 }
 
-function isYamlStart(line: string): boolean {
-  const trimmed = line.trim()
-  if (trimmed.length === 0) return false
-  return /^[A-Za-z_][A-Za-z0-9_.-]*\s*:|^['"][^'"]+['"]\s*:/.test(trimmed)
-}
-
-function splitSlides(markdown: string): string[] {
-  const lines = markdown.replace(/\r\n/g, "\n").split("\n")
-  let idx = 0
-
-  if (lines[0] === "---") {
-    const closeIdx = lines.indexOf("---", 1)
-    if (closeIdx !== -1) idx = closeIdx + 1
-  }
-
-  const slides: string[] = []
-  let current: string[] = []
-  let fenceChar = ""
-  let fenceLen = 0
-
-  while (idx < lines.length) {
-    const line = lines[idx] ?? ""
-    const fenceMatch = line.match(/^\s*(`{3,}|~{3,})/)
-    if (fenceMatch && fenceMatch[1]) {
-      const marker = fenceMatch[1]
-      if (!fenceChar) {
-        fenceChar = marker[0] ?? ""
-        fenceLen = marker.length
-      } else if (marker[0] === fenceChar && marker.length >= fenceLen) {
-        fenceChar = ""
-        fenceLen = 0
-      }
-      current.push(line)
-      idx += 1
-      continue
-    }
-
-    if (!fenceChar && line === "---") {
-      slides.push(current.join("\n"))
-      current = []
-      idx += 1
-
-      const nextLine = lines[idx]
-      if (nextLine !== undefined && isYamlStart(nextLine)) {
-        const closeIdx = lines.indexOf("---", idx)
-        if (closeIdx !== -1) idx = closeIdx + 1
-      }
-      continue
-    }
-
-    current.push(line)
-    idx += 1
-  }
-
-  slides.push(current.join("\n"))
-  return slides
-}
-
 async function checkStaticVmark(slidesPath: string): Promise<Finding[]> {
   const markdown = await Bun.file(slidesPath).text()
-  const slides = splitSlides(markdown)
+  const { slides } = await parse(markdown, slidesPath)
   const findings: Finding[] = []
 
   for (let i = 0; i < slides.length; i += 1) {
-    const body = (slides[i] ?? "").replace(/<!--[\s\S]*?-->/g, "")
+    const body = slides[i]?.content ?? ""
     const matches = body.match(/\bv-mark\b/g)
     const count = matches ? matches.length : 0
     if (count > 2) {
