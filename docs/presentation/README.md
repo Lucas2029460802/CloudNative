@@ -1,8 +1,8 @@
 # Lab 2 class presentation
 
-A [Slidev](https://sli.dev) deck for the 10-minute Lab 2 talk: moving the venue booking system from Docker Compose to Kubernetes. The demo steps, talk outline and team split are in [../presentation-guide.md](../presentation-guide.md). Each slide's spoken script is in its speaker notes.
+This [Slidev](https://sli.dev) deck is for the 10-minute Lab 2 talk on moving the venue booking system from Docker Compose to Kubernetes. See [../presentation-guide.md](../presentation-guide.md) for the demo steps, talk outline and team split. Each slide's spoken script is in its speaker notes.
 
-This is its own Bun project with its own lockfile. Install it once:
+The deck is a separate Bun project with its own lockfile. Install it once:
 
 ```sh
 cd docs/presentation
@@ -11,30 +11,32 @@ bun install
 
 ## Present
 
-| Goal                             | Command                                                                 | Output                                                                |
-| -------------------------------- | ----------------------------------------------------------------------- | --------------------------------------------------------------------- |
-| Live editing with presenter view | `bun run dev`                                                           | <http://localhost:3030>, presenter at `/#/presenter/1`                |
-| One offline HTML file            | `bun run build:single`                                                  | `dist-single/index.html` (open it by double-click, no network needed) |
-| Static site with presenter view  | `bun run build`, then `bun run serve`                                   | <http://localhost:3030>                                               |
-| PDF and PowerPoint backups       | `bun run export -- --with-clicks` and `bun run export -- --format pptx` | `slides-export.pdf`, `slides-export.pptx`                             |
+| Goal                             | Command                                                                 | Output                                                             |
+| -------------------------------- | ----------------------------------------------------------------------- | ------------------------------------------------------------------ |
+| Live editing with presenter view | `bun run dev`                                                           | <http://localhost:3030>, presenter at `/#/presenter/1`             |
+| One offline HTML file            | `bun run build:single`                                                  | `dist-single/index.html` (double-click to open, no network needed) |
+| Static site with presenter view  | `bun run build`, then `bun run serve`                                   | <http://localhost:3030>                                            |
+| PDF and PowerPoint backups       | `bun run export -- --with-clicks` and `bun run export -- --format pptx` | `slides-export.pdf`, `slides-export.pptx`                          |
 
-The single HTML file has no presenter sync, because that needs a server. Use `bun run dev` or `bun run serve` when you want the notes on a second screen.
+Use `bun run dev` or `bun run serve` when you want the notes on a second screen. The single HTML file has no presenter sync because that needs a server.
 
 Press `G` and type a number to jump to a slide. The thank-you slide is the last one, after the backup slides (B1 onward).
 
 ## Architecture animation
 
-The diagram on slide 4 is a [Remotion](https://www.remotion.dev) composition in `morph/`. It is rendered into one clip and one still per click:
+The diagram on slide 4 is a [Remotion](https://www.remotion.dev) composition in `morph/`. Stop any running dev server first. On Windows, the dev server keeps the clips open so the render cannot replace them.
+
+Render one clip and one still per click:
 
 ```sh
 bun morph/render.ts
 ```
 
-The clips go to `assets/morph/`. Stop a running dev server first, because on Windows it keeps the clips open and the render cannot replace them.
+Both go to `assets/morph/`.
 
 ## Check the layout
 
-`checks/check-slides.ts` opens every slide in Chromium and reports text overflow, orphans, contrast, margins, minimum font size and other layout rules. Run it against a dev server or a built deck:
+`checks/check-slides.ts` opens every slide in Chromium and checks text overflow, orphans, contrast, margins, minimum font size and other layout rules. Run it against a dev server or a built deck:
 
 ```sh
 bun checks/check-slides.ts http://localhost:3030
