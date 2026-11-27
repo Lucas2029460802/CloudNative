@@ -1,6 +1,7 @@
 import path from "node:path"
 import { AxeBuilder } from "@axe-core/playwright"
 import { parse } from "@slidev/parser"
+import { blend, parse as parseColor, wcagContrast } from "culori"
 import { chromium, type Page } from "playwright-chromium"
 
 type Finding = {
@@ -9,12 +10,8 @@ type Finding = {
   detail: string
 }
 
-type RgbaColor = {
-  r: number
-  g: number
-  b: number
-  a: number
-}
+// The DOM rules run in the page, where the UMD build sets window.culori.
+type PageWindow = Window & { culori: typeof import("culori") }
 
 type ContrastNodeInput = {
   selector: string | null
@@ -27,13 +24,17 @@ type ContrastNodeInspection = {
   allowed: boolean
   summary: string
   snippet: string
-  fg: RgbaColor | null
+  fg: string | null
   fontSize: number
   fontWeight: number
 }
 
 const BASE_URL = (Bun.argv[2] ?? "http://localhost:3030").replace(/\/+$/, "")
-const PAPER_RGB: RgbaColor = { r: 243, g: 242, b: 238, a: 1 }
+const PAPER = "#f3f2ee"
+const CULORI_UMD = path.join(
+  path.dirname(Bun.resolveSync("culori/package.json", import.meta.dir)),
+  "bundled/culori.umd.js"
+)
 
 function truncate(text: string, maxLen: number): string {
   const singleLine = text.replace(/\s+/g, " ").trim()
@@ -58,37 +59,6 @@ function checkStaticVmark(slides: { content: string }[]): Finding[] {
   }
 
   return findings
-}
-
-function channelLuminance(channel: number): number {
-  const srgb = channel / 255
-  return srgb <= 0.04045 ? srgb / 12.92 : ((srgb + 0.055) / 1.055) ** 2.4
-}
-
-function relativeLuminance(color: RgbaColor): number {
-  return (
-    0.2126 * channelLuminance(color.r) +
-    0.7152 * channelLuminance(color.g) +
-    0.0722 * channelLuminance(color.b)
-  )
-}
-
-function compositeOverPaper(fg: RgbaColor): RgbaColor {
-  const alpha = Math.max(0, Math.min(1, fg.a))
-  return {
-    r: alpha * fg.r + (1 - alpha) * PAPER_RGB.r,
-    g: alpha * fg.g + (1 - alpha) * PAPER_RGB.g,
-    b: alpha * fg.b + (1 - alpha) * PAPER_RGB.b,
-    a: 1,
-  }
-}
-
-function contrastRatio(fg: RgbaColor): number {
-  const lumFg = relativeLuminance(compositeOverPaper(fg))
-  const lumBg = relativeLuminance(PAPER_RGB)
-  const lighter = Math.max(lumFg, lumBg)
-  const darker = Math.min(lumFg, lumBg)
-  return (lighter + 0.05) / (darker + 0.05)
 }
 
 function firstSelector(target: readonly unknown[]): string | null {
@@ -140,51 +110,25 @@ async function checkDomRules(page: Page, slide: number): Promise<Finding[]> {
       "[data-check-skip]",
     ].join(", ")
 
-    const hasAncestorUpTo = (
-      el: Element,
-      boundary: Element,
-      predicate: (node: Element) => boolean
-    ): boolean => {
-      let cur: Element | null = el
-      while (cur) {
-        if (predicate(cur)) return true
-        if (cur === boundary) break
-        cur = cur.parentElement
-      }
-      return false
+    // el or an ancestor inside the slide matches the selector.
+    const withinSlide = (el: Element, selector: string): boolean => {
+      const match = el.closest(selector)
+      return match !== null && root.contains(match)
     }
 
     const isRuleAllowed = (el: Element, ruleId: string): boolean =>
-      hasAncestorUpTo(el, root, (node) => {
-        const attr = node.getAttribute("data-check-allow")
-        if (!attr) return false
-        return attr
-          .split(",")
-          .map((part) => part.trim())
-          .includes(ruleId)
-      })
+      withinSlide(el, `[data-check-allow~="${ruleId}"]`)
 
     const isVisible = (el: Element): boolean => {
-      if (ignoredTags.has(el.tagName)) return false
-      const elStyle = getComputedStyle(el)
       if (
-        elStyle.visibility === "hidden" ||
-        elStyle.visibility === "collapse"
+        !el.checkVisibility({ checkOpacity: true, checkVisibilityCSS: true })
       ) {
         return false
       }
-      let cur: Element | null = el
-      while (cur) {
+      for (let cur: Element | null = el; cur; cur = cur.parentElement) {
         if (ignoredTags.has(cur.tagName)) return false
-        const style = cur === el ? elStyle : getComputedStyle(cur)
-        if (style.display === "none") return false
-        const opacity = Number.parseFloat(style.opacity)
-        if (Number.isFinite(opacity) && opacity === 0) return false
-        cur = cur.parentElement
       }
-      return !hasAncestorUpTo(el, root, (node) =>
-        node.hasAttribute("data-check-skip")
-      )
+      return !withinSlide(el, "[data-check-skip]")
     }
 
     const hasDirectText = (el: Element): boolean => {
@@ -206,65 +150,7 @@ async function checkDomRules(page: Page, slide: number): Promise<Finding[]> {
       return Number.parseFloat(value)
     }
 
-    const parseAlpha = (raw: string | undefined): number => {
-      if (!raw) return 1
-      return raw.endsWith("%")
-        ? Number.parseFloat(raw) / 100
-        : Number.parseFloat(raw)
-    }
-
-    const parseRgba = (
-      cssColor: string
-    ): { r: number; g: number; b: number; a: number } | null => {
-      const open = cssColor.indexOf("(")
-      const close = cssColor.lastIndexOf(")")
-      if (open === -1 || close <= open) return null
-
-      if (cssColor.startsWith("rgb")) {
-        const parts = cssColor
-          .slice(open + 1, close)
-          .split(/[\s,/]+/)
-          .filter(Boolean)
-        if (parts.length < 3) return null
-        const r = Number.parseFloat(parts[0] ?? "0")
-        const g = Number.parseFloat(parts[1] ?? "0")
-        const b = Number.parseFloat(parts[2] ?? "0")
-        const a = parseAlpha(parts[3])
-        if (
-          !Number.isFinite(r) ||
-          !Number.isFinite(g) ||
-          !Number.isFinite(b) ||
-          !Number.isFinite(a)
-        ) {
-          return null
-        }
-        return { r, g, b, a }
-      }
-
-      if (cssColor.startsWith("color(srgb ")) {
-        const parts = cssColor
-          .slice(open + 1, close)
-          .replace(/^srgb\s+/, "")
-          .split(/[\s/]+/)
-          .filter(Boolean)
-        if (parts.length < 3) return null
-        const r = Number.parseFloat(parts[0] ?? "0") * 255
-        const g = Number.parseFloat(parts[1] ?? "0") * 255
-        const b = Number.parseFloat(parts[2] ?? "0") * 255
-        const a = parseAlpha(parts[3])
-        if (
-          !Number.isFinite(r) ||
-          !Number.isFinite(g) ||
-          !Number.isFinite(b) ||
-          !Number.isFinite(a)
-        ) {
-          return null
-        }
-        return { r, g, b, a }
-      }
-
-      return null
-    }
+    const { formatHex, rgb } = (window as PageWindow).culori
 
     const describeEl = (el: Element): string => {
       const tag = el.tagName.toLowerCase()
@@ -387,14 +273,13 @@ async function checkDomRules(page: Page, slide: number): Promise<Finding[]> {
         ) {
           continue
         }
-        const rgba = parseRgba(side.color)
-        if (rgba && rgba.a <= 0.001) continue
+        const color = rgb(side.color)
+        const alpha = color?.alpha ?? 1
+        if (color && alpha <= 0.001) continue
         const isInk =
-          rgba !== null &&
-          Math.round(rgba.r) === 29 &&
-          Math.round(rgba.g) === 27 &&
-          Math.round(rgba.b) === 24 &&
-          rgba.a >= 0.999
+          color !== undefined &&
+          formatHex(color) === "#1d1b18" &&
+          alpha >= 0.999
         // Only img and .frame may use a 2px ink border; > 1px fails elsewhere.
         if (isFrameOrImg && isInk && side.width <= 2) continue
         record(
@@ -407,10 +292,7 @@ async function checkDomRules(page: Page, slide: number): Promise<Finding[]> {
     // rule4-radius
     for (const el of visibleElements) {
       if (isRuleAllowed(el, "rule4-radius")) continue
-      const allowRadius = hasAncestorUpTo(el, root, (node) =>
-        node.hasAttribute("data-allow-radius")
-      )
-      if (allowRadius) continue
+      if (withinSlide(el, "[data-allow-radius]")) continue
       const style = getComputedStyle(el)
       const radii = [
         style.borderTopLeftRadius,
@@ -464,9 +346,7 @@ async function checkDomRules(page: Page, slide: number): Promise<Finding[]> {
       while (node) {
         const parent = node.parentElement
         if (parent && isVisible(parent) && !ignoredTags.has(parent.tagName)) {
-          const excluded = hasAncestorUpTo(parent, root, (anc) =>
-            anc.matches(charExcludedSelector)
-          )
+          const excluded = withinSlide(parent, charExcludedSelector)
           if (!excluded && !isRuleAllowed(parent, "rule8-chars")) {
             const nonWs = (node.nodeValue ?? "").replace(/\s+/g, "")
             charCount += Array.from(nonWs).length
@@ -527,10 +407,7 @@ async function checkDomRules(page: Page, slide: number): Promise<Finding[]> {
       // t2-margins
       for (const el of visibleElements) {
         if (isRuleAllowed(el, "t2-margins")) continue
-        const fullBleed = hasAncestorUpTo(el, root, (node) =>
-          node.hasAttribute("data-full-bleed")
-        )
-        if (fullBleed) continue
+        if (withinSlide(el, "[data-full-bleed]")) continue
         const isTopSvg =
           el.tagName.toLowerCase() === "svg" &&
           el.parentElement?.closest("svg") === null
@@ -657,25 +534,14 @@ async function inspectContrastNodes(
       document.querySelector("#slide-content") ??
       document.querySelector(".slidev-page")
 
-    const isRuleAllowed = (el: Element): boolean => {
-      if (!root) return false
-      let cur: Element | null = el
-      while (cur) {
-        const attr = cur.getAttribute("data-check-allow")
-        if (
-          attr &&
-          attr
-            .split(",")
-            .map((part) => part.trim())
-            .includes("rule2-contrast")
-        ) {
-          return true
-        }
-        if (cur === root) break
-        cur = cur.parentElement
-      }
-      return false
+    // el or an ancestor inside the slide matches the selector.
+    const withinSlide = (el: Element, selector: string): boolean => {
+      const match = el.closest(selector)
+      return match !== null && root !== null && root.contains(match)
     }
+
+    const isRuleAllowed = (el: Element): boolean =>
+      withinSlide(el, '[data-check-allow~="rule2-contrast"]')
 
     const ignoredTags = new Set([
       "STYLE",
@@ -690,79 +556,16 @@ async function inspectContrastNodes(
     ])
 
     const isActive = (el: Element): boolean => {
-      if (!root || ignoredTags.has(el.tagName)) return false
-      const elStyle = getComputedStyle(el)
       if (
-        elStyle.visibility === "hidden" ||
-        elStyle.visibility === "collapse"
+        !root ||
+        !el.checkVisibility({ checkOpacity: true, checkVisibilityCSS: true })
       ) {
         return false
       }
-      let cur: Element | null = el
-      while (cur) {
+      for (let cur: Element | null = el; cur; cur = cur.parentElement) {
         if (ignoredTags.has(cur.tagName)) return false
-        const style = cur === el ? elStyle : getComputedStyle(cur)
-        if (style.display === "none") return false
-        const opacity = Number.parseFloat(style.opacity)
-        if (Number.isFinite(opacity) && opacity === 0) return false
-        cur = cur.parentElement
       }
-      let skipCur: Element | null = el
-      while (skipCur) {
-        if (skipCur.hasAttribute("data-check-skip")) return false
-        if (skipCur === root) break
-        skipCur = skipCur.parentElement
-      }
-      return true
-    }
-
-    const canvas = document.createElement("canvas")
-    canvas.width = 1
-    canvas.height = 1
-    const ctx = canvas.getContext("2d")
-
-    const resolveColor = (
-      cssColor: string
-    ): { r: number; g: number; b: number; a: number } | null => {
-      const open = cssColor.indexOf("(")
-      const close = cssColor.lastIndexOf(")")
-      if (cssColor.startsWith("rgb") && open !== -1 && close > open) {
-        const parts = cssColor
-          .slice(open + 1, close)
-          .split(/[\s,/]+/)
-          .filter(Boolean)
-        if (parts.length >= 3) {
-          const rawA = parts[3]
-          const r = Number.parseFloat(parts[0] ?? "0")
-          const g = Number.parseFloat(parts[1] ?? "0")
-          const b = Number.parseFloat(parts[2] ?? "0")
-          const a = !rawA
-            ? 1
-            : rawA.endsWith("%")
-              ? Number.parseFloat(rawA) / 100
-              : Number.parseFloat(rawA)
-          if (
-            !Number.isFinite(r) ||
-            !Number.isFinite(g) ||
-            !Number.isFinite(b) ||
-            !Number.isFinite(a)
-          ) {
-            return null
-          }
-          return { r, g, b, a }
-        }
-      }
-      if (!ctx) return null
-      ctx.clearRect(0, 0, 1, 1)
-      ctx.fillStyle = cssColor
-      ctx.fillRect(0, 0, 1, 1)
-      const data = ctx.getImageData(0, 0, 1, 1).data
-      return {
-        r: data[0] ?? 0,
-        g: data[1] ?? 0,
-        b: data[2] ?? 0,
-        a: (data[3] ?? 255) / 255,
-      }
+      return !withinSlide(el, "[data-check-skip]")
     }
 
     const parseFontWeight = (value: string): number => {
@@ -795,7 +598,7 @@ async function inspectContrastNodes(
         allowed: isRuleAllowed(el),
         summary: node.summary || node.html,
         snippet,
-        fg: resolveColor(style.color),
+        fg: style.color,
         fontSize: Number.isFinite(parsedFontSize) ? parsedFontSize : 16,
         fontWeight: Number.isFinite(parsedFontWeight) ? parsedFontWeight : 400,
       }
@@ -857,7 +660,8 @@ async function checkContrast(
     const inspected = await inspectContrastNodes(page, incompleteInputs)
     for (const item of inspected) {
       if (!item.active || item.allowed) continue
-      if (!item.fg) {
+      const fg = item.fg ? parseColor(item.fg) : undefined
+      if (!fg) {
         violations.push({
           slide,
           rule: "rule2-contrast",
@@ -865,7 +669,7 @@ async function checkContrast(
         })
         continue
       }
-      const ratio = contrastRatio(item.fg)
+      const ratio = wcagContrast(blend([PAPER, fg]), PAPER)
       if (!Number.isFinite(ratio)) continue
       const isLarge =
         item.fontSize >= 24 ||
@@ -900,6 +704,7 @@ try {
     viewport: { width: 980, height: 552 },
     deviceScaleFactor: 1,
   })
+  await page.addInitScript({ path: CULORI_UMD })
 
   for (let slide = 1; slide <= slides.length; slide += 1) {
     await page.goto(`${BASE_URL}/#/${slide}?clicks=99`, { waitUntil: "load" })

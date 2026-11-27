@@ -30,7 +30,7 @@ const label = computed<string>(() =>
   <div
     v-if="show"
     class="slide-folio"
-    data-check-allow="t2-margins,rule8-chars"
+    data-check-allow="t2-margins rule8-chars"
     aria-hidden="true"
   >
     {{ label }}
