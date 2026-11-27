@@ -41,9 +41,7 @@ function truncate(text: string, maxLen: number): string {
   return `${singleLine.slice(0, maxLen - 1)}…`
 }
 
-async function checkStaticVmark(slidesPath: string): Promise<Finding[]> {
-  const markdown = await Bun.file(slidesPath).text()
-  const { slides } = await parse(markdown, slidesPath)
+function checkStaticVmark(slides: { content: string }[]): Finding[] {
   const findings: Finding[] = []
 
   for (let i = 0; i < slides.length; i += 1) {
@@ -890,7 +888,9 @@ const violations: Finding[] = []
 const info: Finding[] = []
 
 const slidesPath = path.join(import.meta.dir, "..", "slides.md")
-violations.push(...(await checkStaticVmark(slidesPath)))
+// window.__slidev__ exists only on the dev server, so count the slides here.
+const { slides } = await parse(await Bun.file(slidesPath).text(), slidesPath)
+violations.push(...checkStaticVmark(slides))
 
 const browser = await chromium.launch()
 try {
@@ -901,26 +901,7 @@ try {
     deviceScaleFactor: 1,
   })
 
-  await page.goto(`${BASE_URL}/#/1`, { waitUntil: "load" })
-  await page.waitForFunction(() => {
-    // oxlint-disable-next-line
-    const win = window as unknown as {
-      __slidev__?: { nav?: { total?: unknown } }
-    }
-    return (
-      typeof win.__slidev__?.nav?.total === "number" &&
-      win.__slidev__.nav.total > 0
-    )
-  })
-  const totalSlides = await page.evaluate(() => {
-    // oxlint-disable-next-line
-    const win = window as unknown as {
-      __slidev__?: { nav?: { total?: number } }
-    }
-    return win.__slidev__?.nav?.total ?? 0
-  })
-
-  for (let slide = 1; slide <= totalSlides; slide += 1) {
+  for (let slide = 1; slide <= slides.length; slide += 1) {
     await page.goto(`${BASE_URL}/#/${slide}?clicks=99`, { waitUntil: "load" })
     await page.waitForFunction(() =>
       Boolean(

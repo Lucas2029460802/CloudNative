@@ -44,8 +44,7 @@
     {
       "files": ["docs/presentation/checks/**"],
       "rules": {
-        "unicorn/consistent-function-scoping": "off",
-        "no-underscore-dangle": ["warn", { "allow": ["__slidev__"] }]
+        "unicorn/consistent-function-scoping": "off"
       }
     }
   ],
