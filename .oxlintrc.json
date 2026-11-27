@@ -36,6 +36,17 @@
         "jsx-a11y/click-events-have-key-events": "off",
         "jsx-a11y/no-noninteractive-element-interactions": "off"
       }
+    },
+    {
+      "files": ["docs/presentation/**/*.vue"],
+      "plugins": ["typescript", "unicorn", "import", "vue"]
+    },
+    {
+      "files": ["docs/presentation/checks/**"],
+      "rules": {
+        "unicorn/consistent-function-scoping": "off",
+        "no-underscore-dangle": ["warn", { "allow": ["__slidev__"] }]
+      }
     }
   ],
   "ignorePatterns": [
@@ -43,6 +54,10 @@
     ".claude/**",
     ".codex/**",
     "**/dist/**",
+    "docs/presentation/release/**",
+    "docs/presentation/dist-single/**",
+    "docs/presentation/assets/morph/**",
+    "docs/presentation/assets/fonts-subset/**",
     "**/routeTree.gen.ts"
   ]
 }

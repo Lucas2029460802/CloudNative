@@ -1,0 +1,55 @@
+@import "@fontsource/noto-sans-sc/400.css";
+@import "@fontsource/noto-sans-sc/700.css";
+@import "@fontsource/jetbrains-mono/400.css";
+
+:root {
+  --paper: #f3f2ee;
+  --ink: #1d1b18;
+  --ink-2: #4b4741;
+  /* 3.3:1 on paper: large text and strokes only. */
+  --orange: #dc5f0c;
+  --slidev-code-font-family: "JetBrains Mono", monospace;
+}
+
+.slidev-layout {
+  padding: 48px 64px;
+  overflow: hidden;
+  background: var(--paper) url("./public/paper-grain.svg");
+  background-size: 400px;
+  color: var(--ink);
+  font-family: "Noto Sans SC", sans-serif;
+  line-break: strict;
+}
+
+.slidev-layout h1 {
+  position: relative;
+  z-index: 1;
+  margin: 0 0 28px;
+  font-size: 36px;
+  font-weight: 700;
+  line-height: 1.25;
+  text-wrap: balance;
+}
+
+/* The default theme dims the paragraph after a heading; keep full ink. */
+.slidev-layout h1 + p {
+  margin-top: 0;
+  opacity: 1;
+}
+
+.slidev-layout p,
+.slidev-layout li {
+  font-size: 20px;
+  line-height: 1.6;
+}
+
+.slidev-layout .caption {
+  color: var(--ink-2);
+  font-size: 16px;
+}
+
+.slidev-layout pre,
+.slidev-layout code {
+  border-radius: 0;
+  font-size: 18px;
+}
