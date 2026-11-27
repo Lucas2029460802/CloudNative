@@ -515,7 +515,7 @@ backup: true
     :zoom="122"
     :pos-x="50"
     :pos-y="58"
-    frame-width="556px"
+    frame-width="530px"
     frame-height="336px"
   />
   <div class="col-grow demo-points">
@@ -536,6 +536,7 @@ backup: true
 .demo-points :deep(li) {
   margin-bottom: 22px;
   font-size: 18px;
+  white-space: nowrap;
 }
 </style>
 
@@ -704,10 +705,10 @@ backup: true
     src="lab2-01-reports-zh"
     alt="利用率报告页面"
     :tilt="0"
-    :zoom="116"
+    :zoom="127"
     :pos-x="50"
     :pos-y="75"
-    frame-width="580px"
+    frame-width="530px"
     frame-height="336px"
   />
   <div class="col-grow report-shot-points">
@@ -728,6 +729,7 @@ backup: true
 .report-shot-points :deep(li) {
   margin-bottom: 22px;
   font-size: 18px;
+  white-space: nowrap;
 }
 </style>
 
