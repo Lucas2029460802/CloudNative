@@ -989,6 +989,16 @@ try {
       await document.fonts.ready
     })
     await page.waitForTimeout(600)
+    // Magic-move tokens fade in and out; measure them only once they settle.
+    await page.waitForFunction(() =>
+      document
+        .getAnimations()
+        .every(
+          (a) =>
+            a.playState !== "running" ||
+            a.effect?.getTiming().iterations === Infinity
+        )
+    )
 
     const domViolations = await checkDomRules(page, slide)
     violations.push(...domViolations)
