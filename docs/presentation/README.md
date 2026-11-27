@@ -1,6 +1,6 @@
 # Lab 2 class presentation
 
-A [Slidev](https://sli.dev) deck for the 10-minute Lab 2 talk: moving the venue booking system from Docker Compose to Kubernetes. The talk outline and who says what are in [../presentation-guide.md](../presentation-guide.md). Each slide's spoken script is in its speaker notes.
+A [Slidev](https://sli.dev) deck for the 10-minute Lab 2 talk: moving the venue booking system from Docker Compose to Kubernetes. The demo steps, talk outline and team split are in [../presentation-guide.md](../presentation-guide.md). Each slide's spoken script is in its speaker notes.
 
 This is its own Bun project with its own lockfile. Install it once:
 
