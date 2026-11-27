@@ -150,7 +150,7 @@ async function checkDomRules(page: Page, slide: number): Promise<Finding[]> {
       return Number.parseFloat(value)
     }
 
-    const { formatHex, rgb } = (window as PageWindow).culori
+    const { formatHex, rgb } = (window as unknown as PageWindow).culori
 
     const describeEl = (el: Element): string => {
       const tag = el.tagName.toLowerCase()
@@ -698,12 +698,13 @@ violations.push(...checkStaticVmark(slides))
 
 const browser = await chromium.launch()
 try {
+  // axe-core needs a page from an explicit context.
   const page = await (
-    await browser.newContext()
-  ).newPage({
-    viewport: { width: 980, height: 552 },
-    deviceScaleFactor: 1,
-  })
+    await browser.newContext({
+      viewport: { width: 980, height: 552 },
+      deviceScaleFactor: 1,
+    })
+  ).newPage()
   await page.addInitScript({ path: CULORI_UMD })
 
   for (let slide = 1; slide <= slides.length; slide += 1) {

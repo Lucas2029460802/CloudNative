@@ -27,9 +27,11 @@
         "morph/render.ts",
         "scripts/*.ts"
       ],
+      "ignore": ["empty.d.ts"],
       "ignoreDependencies": [
         "@fontsource/jetbrains-mono",
         "@slidev/theme-default",
+        "@types/file-saver",
         "simple-icons"
       ]
     },
