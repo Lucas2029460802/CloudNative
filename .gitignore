@@ -18,3 +18,8 @@ blob-report/
 
 # Real credentials for the Kubernetes deployment (copy deploy/k8s/secret.env.example)
 deploy/k8s/secret.env
+
+# Slides build output (docs/presentation)
+docs/presentation/dist-single/
+docs/presentation/release/
+docs/presentation/assets/fonts-subset/

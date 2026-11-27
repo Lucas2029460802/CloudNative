@@ -16,6 +16,25 @@
     "apps/api": {
       "entry": ["src/report.ts"]
     },
+    "docs/presentation": {
+      "entry": [
+        "slides.md",
+        "components/**",
+        "layouts/**",
+        "morph/index.ts",
+        "remotion.config.ts",
+        "checks/*.ts",
+        "morph/render.ts",
+        "scripts/*.ts"
+      ],
+      "ignore": ["empty.d.ts"],
+      "ignoreDependencies": [
+        "@fontsource/jetbrains-mono",
+        "@slidev/theme-default",
+        "@types/file-saver",
+        "simple-icons"
+      ]
+    },
     ".": {
       "entry": ["tests/**/*.ts", "scripts/*.ts"]
     }

@@ -1,0 +1,41 @@
+{
+  "name": "venue-booking-slides",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "slidev --open",
+    "build": "slidev build",
+    "build:single": "bun scripts/subset-fonts.ts && SLIDES_SINGLE=1 slidev build --out dist-single",
+    "export": "slidev export",
+    "serve": "bun serve.ts",
+    "typecheck": "vue-tsc --noEmit && tsc --noEmit -p tsconfig.node.json"
+  },
+  "dependencies": {
+    "@fontsource/jetbrains-mono": "^5.3.0",
+    "@fontsource/noto-sans-sc": "^5.3.1",
+    "@slidev/cli": "^53.2.0",
+    "@slidev/theme-default": "^0.25.0",
+    "simple-icons": "^16.38.1"
+  },
+  "devDependencies": {
+    "@axe-core/playwright": "^4.14.1",
+    "@remotion/cli": "^4.0.547",
+    "@slidev/parser": "^53.2.0",
+    "@slidev/types": "^53.2.0",
+    "@types/bun": "^1.4.5",
+    "@types/culori": "^4.0.1",
+    "@types/file-saver": "^2.0.7",
+    "@types/react": "^19.3.3",
+    "culori": "^4.0.2",
+    "playwright-chromium": "^1.65.1",
+    "react": "^19.3.1",
+    "react-dom": "^19.3.1",
+    "remotion": "^4.0.547",
+    "roughjs": "^4.6.6",
+    "subset-font": "^2.9.0",
+    "typescript": "^5",
+    "vite": "^8.4.0",
+    "vite-plugin-singlefile": "^2.3.4",
+    "vue-tsc": "^3.3.14"
+  }
+}

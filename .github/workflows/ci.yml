@@ -27,6 +27,8 @@ jobs:
         with:
           node-version: 24
       - run: bun install --frozen-lockfile
+      # knip also checks the presentation project, which has its own lockfile.
+      - run: bun install --frozen-lockfile --cwd docs/presentation
       - run: bun run lint
       - run: bun run format:check
       - run: bun run knip
@@ -185,11 +187,45 @@ jobs:
       - run: uv run ruff format --check
       - run: uv run mypy
 
+  # The class presentation is its own Bun project. Type-check it, build the
+  # single-file HTML, and run the slide layout checker against the built deck.
+  slides:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    defaults:
+      run:
+        working-directory: docs/presentation
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2.2.0
+        with:
+          bun-version: 1.4.5
+      # The Slidev CLI runs on Node.js.
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: 24
+      - run: bun install --frozen-lockfile
+      - run: bun run typecheck
+      - run: bun run build:single
+      - run: bun run build
+      - run: bunx playwright install --with-deps chromium
+      - name: Check the slide layout rules
+        run: |
+          bun run serve &
+          until curl -sf http://localhost:3030/ > /dev/null; do sleep 1; done
+          bun checks/check-slides.ts http://localhost:3030
+      - name: Upload the single-file slides
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: slides-html
+          path: docs/presentation/dist-single/index.html
+          if-no-files-found: error
+
   # The one check for branch protection to require: it passes only when every
   # job above succeeded. always() makes it report even when one of them failed.
   quality-gate:
     if: always()
-    needs: [lint, test, build, compose-e2e, k8s-e2e, md-to-pdf]
+    needs: [lint, test, build, compose-e2e, k8s-e2e, md-to-pdf, slides]
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:

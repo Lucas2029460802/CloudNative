@@ -1,0 +1,15 @@
+{
+  // Scripts that run on Bun: the checker, the build helpers and the server.
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "types": ["bun"]
+  },
+  "files": [],
+  "include": [
+    "checks",
+    "scripts",
+    "morph/render.ts",
+    "serve.ts",
+    "vite.config.ts"
+  ]
+}

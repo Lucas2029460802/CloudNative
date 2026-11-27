@@ -1,0 +1,36 @@
+{
+  "compilerOptions": {
+    "target": "ES2022",
+    "module": "ESNext",
+    "moduleResolution": "bundler",
+    "lib": ["ES2023", "DOM", "DOM.Iterable"],
+    "jsx": "react-jsx",
+    "strict": true,
+    "noEmit": true,
+    "skipLibCheck": true,
+    "esModuleInterop": true,
+    "resolveJsonModule": true,
+    "isolatedModules": true,
+    // The Slidev client source expects this (see the @ts-expect-error in its
+    // logic/dark.ts).
+    "noUnusedLocals": true,
+    // Browser code only: @types/bun would replace Vite's import.meta.hot.
+    // unplugin's types import "bun", so point that at an empty module here.
+    "types": ["vite/client"],
+    "paths": { "bun": ["./empty.d.ts"] }
+  },
+  // Slidev's own type shims for its client source and for Vue templates.
+  "files": [
+    "node_modules/@slidev/client/shim.d.ts",
+    "node_modules/@slidev/client/shim-vue.d.ts"
+  ],
+  "include": [
+    "env.d.ts",
+    "global-top.vue",
+    "components",
+    "layouts",
+    "morph/*.tsx",
+    "morph/index.ts",
+    "remotion.config.ts"
+  ]
+}

@@ -23,7 +23,11 @@
     "test:lighthouse": "lhci autorun",
     "db:generate": "bun run --filter @venue/api db:generate",
     "diagrams": "node scripts/render-diagrams.ts",
-    "report:pdf": "uv run --project scripts/md-to-pdf md-to-pdf"
+    "report:pdf": "uv run --project scripts/md-to-pdf md-to-pdf",
+    "slides": "bun --cwd docs/presentation run dev",
+    "slides:build": "bun --cwd docs/presentation run build",
+    "slides:export": "bun --cwd docs/presentation run export",
+    "slides:serve": "bun --cwd docs/presentation run serve"
   },
   "devDependencies": {
     "@axe-core/playwright": "^4.14.0",

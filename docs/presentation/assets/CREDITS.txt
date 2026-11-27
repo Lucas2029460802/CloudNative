@@ -1,0 +1,5 @@
+cat.svg: "Cute Simple Cat Sitting" by Colleen O'Dell (StarGlade), public domain (CC0),
+https://openclipart.org/detail/330236/cute-simple-cat-sitting
+
+public/k8s/*.svg: kubernetes/community icons (The Kubernetes Authors), Apache-2.0,
+recolored. https://github.com/kubernetes/community/tree/master/icons
