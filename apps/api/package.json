@@ -13,19 +13,19 @@
     "@date-fns/tz": "^1.5.0",
     "@hono/node-server": "^2.1.11",
     "@kubernetes/client-node": "^2.0.2",
-    "@orpc/openapi": "^1.16.4",
+    "@orpc/openapi": "^1.16.6",
     "@orpc/server": "^1.16.4",
-    "@orpc/zod": "^1.16.4",
+    "@orpc/zod": "^1.16.6",
     "@venue/contracts": "workspace:*",
     "date-fns": "^4.4.0",
     "drizzle-orm": "^0.45.4",
-    "hono": "^4.13.19",
+    "hono": "^4.13.22",
     "p-retry": "^9.0.0",
     "postgres": "^4.1.1",
     "zod": "^4.6.7"
   },
   "devDependencies": {
-    "@types/node": "^26.6.6",
+    "@types/node": "^26.6.10",
     "drizzle-kit": "^0.31.11",
     "tsx": "^4.23.15",
     "typescript": "^7.0.2"

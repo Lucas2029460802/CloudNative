@@ -26,20 +26,20 @@
     "report:pdf": "uv run --project scripts/md-to-pdf md-to-pdf"
   },
   "devDependencies": {
-    "@axe-core/playwright": "^4.14.0",
+    "@axe-core/playwright": "^4.14.1",
     "@fontsource/noto-sans-sc": "^5.3.1",
     "@fontsource/source-sans-3": "^5.3.1",
     "@kubernetes/client-node": "^2.0.2",
     "@lhci/cli": "^0.16.1",
     "@playwright/cli": "^0.1.25",
     "@playwright/test": "^1.65.1",
-    "@types/node": "^26.6.6",
-    "knip": "^6.47.0",
+    "@types/node": "^26.6.10",
+    "knip": "^6.48.0",
     "mermaid": "^12.3.0",
-    "oxfmt": "^0.79.0",
-    "oxlint": "^1.94.0",
+    "oxfmt": "^0.80.0",
+    "oxlint": "^1.95.0",
     "typescript": "^7.0.2",
-    "vitest": "^5.1.1",
+    "vitest": "^5.1.2",
     "yaml": "^2.9.1"
   },
   "overrides": {
